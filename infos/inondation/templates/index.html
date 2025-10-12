@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Accueil{% endblock %}
+{% block content %}
+<div class="container text-center">
+    <h1 class="fw-bold mb-4">Bienvenue sur la plateforme d'alerte inondations</h1>
+    <p class="lead text-secondary mb-5">Recevez des informations en temps réel et aidez à prévenir les risques d'inondations à Dakar.</p>
+    
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card shadow h-100">
+                <img src="{% static 'images/alert.jpg' %}" class="card-img-top" alt="Alerte">
+                <div class="card-body">
+                    <h5 class="card-title">Alertes en Direct</h5>
+                    <p class="card-text">Soyez informé immédiatement lorsqu’un risque est détecté.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow h-100">
+                <img src="{% static 'images/map.jpg' %}" class="card-img-top" alt="Carte">
+                <div class="card-body">
+                    <h5 class="card-title">Carte interactive</h5>
+                    <p class="card-text">Visualisez les zones à risque et les points de refuge.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow h-100">
+                <img src="{% static 'images/community.jpg' %}" class="card-img-top" alt="Communauté">
+                <div class="card-body">
+                    <h5 class="card-title">Communauté</h5>
+                    <p class="card-text">Partagez et recevez des infos utiles des habitants.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
