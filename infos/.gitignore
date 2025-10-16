@@ -1,0 +1,11 @@
+# Python
+**/__pycache__/
+*.pyc
+db.sqlite3
+media/
+
+# Frontend (Vite/Node)
+React/sentinel-dakar/node_modules/
+React/sentinel-dakar/dist/
+React/sentinel-dakar/.vite/
+React/sentinel-dakar/.env*
