@@ -1,0 +1,213 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Base colors - Light & simple */
+    --background: 0 0% 100%; /* Blanc pur pour une meilleure lisibilité */
+    --foreground: 220 15% 20%; /* Gris bleuté foncé, lisible */
+
+    /* Card and surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 20%;
+
+    /* Primary - Clear sky blue */
+    --primary: 210 90% 50%;
+    --primary-foreground: 0 0% 98%;
+    /* Primary variants */
+    --primary-light: 210 90% 60%;
+    --primary-dark: 210 90% 40%;
+
+    /* Secondary - very light blue */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 220 15% 20%;
+
+    /* Muted */
+    --muted: 210 20% 97%;
+    --muted-foreground: 220 10% 40%;
+
+    /* Accent */
+    --accent: 200 70% 90%;
+    --accent-foreground: 220 15% 20%;
+
+    /* Alert colors */
+    --warning: 35 95% 60%;
+    --warning-foreground: 0 0% 98%;
+    
+    --danger: 0 85% 55%;
+    --danger-foreground: 0 0% 98%;
+    
+    --success: 142 60% 38%;
+    --success-foreground: 0 0% 98%;
+
+    /* Destructive - Emergency red */
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Interactive elements */
+    --border: 210 15% 90%;
+    --input: 210 20% 96%;
+    --ring: 210 90% 50%;
+
+    /* Design tokens */
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 15% 20%;
+    --sidebar-primary: 210 90% 50%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 220 15% 20%;
+    --sidebar-border: 210 15% 90%;
+    --sidebar-ring: 210 90% 50%;
+  }
+
+  .dark {
+    /* Dark mode - Deep ocean theme */
+    --background: 210 30% 8%;
+    --foreground: 210 20% 92%;
+
+    --card: 210 25% 12%;
+    --card-foreground: 210 20% 92%;
+
+    --popover: 210 25% 12%;
+    --popover-foreground: 210 20% 92%;
+
+    --primary: 190 85% 55%;
+    --primary-foreground: 210 30% 8%;
+    
+    --primary-light: 190 80% 65%;
+    --primary-dark: 190 90% 45%;
+
+    --secondary: 210 25% 20%;
+    --secondary-foreground: 210 20% 92%;
+
+    --muted: 210 25% 16%;
+    --muted-foreground: 210 15% 65%;
+
+    --accent: 180 70% 45%;
+    --accent-foreground: 210 20% 92%;
+
+    --warning: 35 95% 60%;
+    --warning-foreground: 210 30% 8%;
+    
+    --danger: 0 85% 55%;
+    --danger-foreground: 210 30% 8%;
+    
+    --success: 142 76% 36%;
+    --success-foreground: 210 30% 8%;
+
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 210 30% 8%;
+
+    --border: 210 25% 20%;
+    --input: 210 25% 16%;
+    --ring: 190 85% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+/* Custom gradients and animations */
+:root {
+  --gradient-ocean: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-light)) 50%, hsl(var(--accent)) 100%);
+  --gradient-depth: linear-gradient(180deg, hsl(var(--primary-dark)) 0%, hsl(var(--primary)) 100%);
+  --gradient-alert: linear-gradient(135deg, hsl(var(--warning)) 0%, hsl(var(--danger)) 100%);
+  --gradient-safe: linear-gradient(135deg, hsl(var(--success)) 0%, hsl(var(--accent)) 100%);
+  
+  --shadow-depth: 0 10px 30px -5px hsl(var(--primary) / 0.3);
+  --shadow-float: 0 20px 40px -10px hsl(var(--primary) / 0.2);
+  --shadow-alert: 0 8px 25px -5px hsl(var(--danger) / 0.4);
+  
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .gradient-ocean {
+    background: var(--gradient-ocean);
+  }
+  
+  .gradient-depth {
+    background: var(--gradient-depth);
+  }
+  
+  .gradient-alert {
+    background: var(--gradient-alert);
+  }
+  
+  .gradient-safe {
+    background: var(--gradient-safe);
+  }
+  
+  .shadow-depth {
+    box-shadow: var(--shadow-depth);
+  }
+  
+  .shadow-float {
+    box-shadow: var(--shadow-float);
+  }
+  
+  .shadow-alert {
+    box-shadow: var(--shadow-alert);
+  }
+  
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 0 0 5px hsl(var(--primary) / 0.5);
+  }
+  50% { 
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.8), 0 0 30px hsl(var(--primary) / 0.4);
+  }
+}
