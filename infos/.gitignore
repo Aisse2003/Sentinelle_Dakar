@@ -1,66 +1,12 @@
-# --------------------------
-# Django / Python
-# --------------------------
-# Dossiers et fichiers Python temporaires
+# Python / Django
 **/__pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Environnement virtuel
 env/
-venv/
-ENV/
-
-# Base de données
 db.sqlite3
-
-# Fichiers uploadés
 media/
 
-# Fichiers de log
-*.log
-
-# Django migrations compilées
-*/migrations/*.pyc
-*/migrations/__pycache__/
-
-# --------------------------
 # React / Node
-# --------------------------
-# Node modules
 React/sentinel-dakar/node_modules/
-
-# Dossiers de build
 React/sentinel-dakar/dist/
-React/sentinel-dakar/build/
-
-# Vite
 React/sentinel-dakar/.vite/
-
-# Fichiers d'environnement (contiennent souvent des secrets)
 React/sentinel-dakar/.env*
-.env*
-
-# Logs et caches
-React/sentinel-dakar/npm-debug.log*
-React/sentinel-dakar/yarn-debug.log*
-React/sentinel-dakar/yarn-error.log*
-React/sentinel-dakar/.cache/
-
-# --------------------------
-# IDE / OS
-# --------------------------
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# Mac
-.DS_Store
-
-# VS Code
-.vscode/
-
-# PyCharm
-.idea/

@@ -19,9 +19,19 @@ class MesureSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class AlerteSerializer(serializers.ModelSerializer):
+    localisation = LocalisationSerializer(read_only=True)
+    has_signalement = serializers.SerializerMethodField()
+
     class Meta:
         model = Alerte
-        fields = '__all__'
+        fields = ['id','localisation','niveau','message','date_alerte','has_signalement']
+
+    def get_has_signalement(self, obj):
+        try:
+            from .models import Signalement
+            return Signalement.objects.filter(alerte_id=obj.id).exists()
+        except Exception:
+            return False
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -40,9 +50,23 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
         
 class UserSerializer(serializers.ModelSerializer):
+    groups = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name')
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        fields = [
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'is_active',
+            'is_staff',
+            'is_superuser',
+            'last_login',
+            'date_joined',
+            'groups',
+        ]
 
 
 class LoginResponseSerializer(serializers.Serializer):

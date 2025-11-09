@@ -5,7 +5,7 @@ import { AlertTriangle, Clock, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AlertCardProps {
-  level: "low" | "medium" | "high" | "critical";
+  level: "low" | "medium" | "high" | "critical" | "info";
   title: string;
   message: string;
   location: string;
@@ -37,6 +37,12 @@ const alertConfig = {
     textColor: "text-destructive-foreground",
     borderColor: "border-destructive",
     bgColor: "bg-destructive/10",
+  },
+  info: {
+    color: "bg-primary",
+    textColor: "text-primary-foreground",
+    borderColor: "border-primary",
+    bgColor: "bg-primary/10",
   },
 };
 

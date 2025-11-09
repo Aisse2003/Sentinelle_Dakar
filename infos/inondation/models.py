@@ -44,6 +44,7 @@ class Signalement(models.Model):
     """Signalement citoyen de terrain, potentiellement à l'origine d'une Alerte."""
     localisation = models.ForeignKey(Localisation, on_delete=models.CASCADE)
     alerte = models.ForeignKey(Alerte, on_delete=models.SET_NULL, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='signalements')
     type_incident = models.CharField(max_length=100, blank=True, default="")
     location_text = models.CharField(max_length=255, blank=True, default="")
     severity = models.CharField(max_length=20, blank=True, default="")
@@ -64,3 +65,39 @@ class SignalementPhoto(models.Model):
 
     def __str__(self):
         return f"Photo {self.id} du signalement {self.signalement_id}"
+
+
+class Degat(models.Model):
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='degats')
+    property_type = models.CharField(max_length=100)  # maison, véhicule, commerce, etc.
+    loss_amount_text = models.CharField(max_length=100, blank=True, default="")  # ex: 500 000 FCFA
+    loss_description = models.TextField(blank=True, default="")
+    people_affected = models.IntegerField(default=0)
+    remarks = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Degat {self.id} - {self.property_type}"
+
+
+class DegatPiece(models.Model):
+    degat = models.ForeignKey(Degat, on_delete=models.CASCADE, related_name='pieces')
+    file = models.FileField(upload_to='degats/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Pièce {self.id} du dégât {self.degat_id}"
+
+
+class AssistanceRequest(models.Model):
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assistance_requests')
+    location_text = models.CharField(max_length=255)
+    help_type = models.CharField(max_length=100)  # secours, hébergement, nourriture, transport, évacuation médicale, etc.
+    people_count = models.IntegerField(default=0)
+    phone = models.CharField(max_length=50)
+    availability = models.CharField(max_length=100, blank=True, default="")  # ou urgence texte libre
+    urgency_note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Assistance {self.id} - {self.help_type}"

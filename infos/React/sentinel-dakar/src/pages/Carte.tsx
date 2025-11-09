@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import L from "leaflet";
+import L, { type LatLngExpression, type LatLngTuple } from "leaflet";
+import type { Map as LeafletMap } from 'leaflet';
+import type { Marker as LeafletMarker } from 'leaflet';
+type LatLng = [number, number];
 import 'leaflet/dist/leaflet.css';
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useApi } from "../hooks/useApi";
+import { useRealtime } from "@/hooks/useRealtime";
 import { Map as MapIcon, Search, Layers, Navigation, MapPin, AlertTriangle, Filter, Maximize2 } from "lucide-react";
+import { useTranslation } from 'react-i18next';
+import { useGeolocation } from "@/hooks/useGeolocation.tsx";
 
 // Fix Leaflet icons
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -37,7 +43,9 @@ const levelConfig = {
 };
 
 const Carte = () => {
-  const [map, setMap] = useState<L.Map | null>(null);
+  const AnyMapContainer: any = MapContainer;
+  const AnyMarker: any = Marker;
+  const [map, setMap] = useState<LeafletMap | null>(null);
   const [filters, setFilters] = useState({
     critical: true,
     high: true,
@@ -45,29 +53,64 @@ const Carte = () => {
     low: true,
   });
   const [fullscreen, setFullscreen] = useState(false);
+  const { t } = useTranslation();
+  const { position } = useGeolocation();
+
+  // Données réelles
+  const { data: alertsData } = useApi("alertes");
+  const { data: reportsData } = useApi("signalements");
+  useRealtime("http://127.0.0.1:8000/api/realtime/stream");
+
+  // Helpers pour extraire lat/lng depuis les objets backend
+  const getLatLng = (o: any): LatLng | null => {
+    const loc = o?.location || o?.localisation || {};
+    const lat = Number(loc.lat || loc.latitude || o?.lat || o?.latitude);
+    const lng = Number(loc.lng || loc.long || loc.lon || loc.longitude || o?.lng || o?.long || o?.lon || o?.longitude);
+    if (isFinite(lat) && isFinite(lng)) return [lat, lng] as LatLng;
+    return null;
+  };
+
+  const alerts = Array.isArray(alertsData) ? alertsData : [];
+  const reports = Array.isArray(reportsData) ? reportsData : [];
+  const initialCenter: LatLngExpression = [(position?.latitude ?? 14.7167), (position?.longitude ?? -17.4677)] as LatLngTuple;
 
   // Focus sur une zone
-  const focusZone = (coords: [number, number]) => {
+  const focusZone = (coords: [number, number] | number[]) => {
     if (map) {
-      map.setView(coords, 14, { animate: true });
+      map.setView(coords as LatLngTuple, 14, { animate: true });
     }
   };
+
+  // Centrer sur position en temps réel
+  useEffect(() => {
+    if (map && position) {
+      map.setView([position.latitude, position.longitude] as LatLngTuple, 13, { animate: true });
+    }
+  }, [map, position]);
+
+  // Fit bounds sur les marqueurs visibles
+  useEffect(() => {
+    if (!map) return;
+    const positions: LatLngTuple[] = [];
+    const push = (p: LatLng | null) => { if (p) positions.push(p as LatLngTuple); };
+    (Array.isArray(alertsData)? alertsData: []).forEach((a: any) => {
+      const pos = getLatLng(a);
+      const levelRaw = String(a.level || a.niveau || 'info').toLowerCase();
+      const level = levelRaw.includes('crit') ? 'critical' : levelRaw.includes('high') ? 'high' : levelRaw.includes('medium') ? 'medium' : 'low';
+      if (filters[level as keyof typeof filters]) push(pos);
+    });
+    (Array.isArray(reportsData)? reportsData: []).forEach((r: any) => push(getLatLng(r)));
+    if (positions.length > 0) {
+      const bounds = L.latLngBounds(positions);
+      map.fitBounds(bounds.pad(0.2));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, alertsData, reportsData, filters.critical, filters.high, filters.medium, filters.low]);
 
   // Toggle filtre
   const toggleFilter = (level: string) => {
     setFilters(prev => ({ ...prev, [level]: !prev[level] }));
   };
-
-  // Alertes temps réel simulées (désactivées)
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     const newZone = riskZones[Math.floor(Math.random() * riskZones.length)];
-  //     if (newZone.level === "critical") {
-  //       // notification simulée désactivée
-  //     }
-  //   }, 15000);
-  //   return () => clearInterval(interval);
-  // }, []);
 
   return (
     <Layout>
@@ -75,25 +118,21 @@ const Carte = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold gradient-ocean bg-clip-text text-transparent">
-              Carte Interactive des Risques
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Visualisation en temps réel des zones à risque d'inondation
-            </p>
+            <h1 className="text-3xl font-bold gradient-ocean bg-clip-text text-transparent">{t('map.title')}</h1>
+            <p className="text-muted-foreground mt-1">{t('map.subtitle')}</p>
           </div>
           <div className="flex space-x-2 mt-4 md:mt-0">
             <Button variant="outline">
               <Layers className="h-4 w-4 mr-2" />
-              Couches
+              {t('map.layers')}
             </Button>
             <Button variant="outline">
               <Filter className="h-4 w-4 mr-2" />
-              Filtres
+              {t('map.filters')}
             </Button>
             <Button onClick={() => setFullscreen(!fullscreen)}>
               <Maximize2 className="h-4 w-4 mr-2" />
-              {fullscreen ? "Quitter plein écran" : "Plein écran"}
+              {fullscreen ? t('map.exitFullscreen') : t('map.fullscreen')}
             </Button>
           </div>
         </div>
@@ -104,12 +143,12 @@ const Carte = () => {
             {/* Search */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Rechercher une zone</CardTitle>
+                <CardTitle className="text-lg">{t('map.searchZone')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Nom du quartier..." className="pl-10" />
+                  <Input placeholder={t('common.search')+"..."} className="pl-10" />
                 </div>
               </CardContent>
             </Card>
@@ -119,7 +158,7 @@ const Carte = () => {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center">
                   <Filter className="h-5 w-5 mr-2 text-primary" />
-                  Filtres par niveau
+                  {t('map.levelFilters')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -141,7 +180,7 @@ const Carte = () => {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center">
                   <AlertTriangle className="h-5 w-5 mr-2 text-danger" />
-                  Zones Surveillées
+                  {t('map.zones')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -165,7 +204,7 @@ const Carte = () => {
                       </div>
                       <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => focusZone(zone.coords)}>
                         <MapPin className="h-3 w-3 mr-1" />
-                        Localiser
+                        {t('map.locate')}
                       </Button>
                     </div>
                   );
@@ -192,8 +231,8 @@ const Carte = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-0 h-[650px]">
-                <MapContainer
-                  center={[14.7167, -17.4677]}
+                <AnyMapContainer
+                  center={initialCenter as any}
                   zoom={12}
                   scrollWheelZoom
                   className="h-full w-full"
@@ -202,19 +241,62 @@ const Carte = () => {
                   <TileLayer
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  {riskZones
-                    .filter(zone => filters[zone.level as keyof typeof filters])
-                    .map(zone => (
-                      <Marker key={zone.id} position={zone.coords}>
+                  {/* Marqueurs alertes géolocalisées */}
+                  {alerts.map((a: any, idx: number) => {
+                    const pos = getLatLng(a);
+                    const levelRaw = String(a.level || a.niveau || 'info').toLowerCase();
+                    const level = levelRaw.includes('crit') ? 'critical' : levelRaw.includes('high') ? 'high' : levelRaw.includes('medium') ? 'medium' : 'low';
+                    if (!pos) return null;
+                    if (!filters[level as keyof typeof filters]) return null;
+                    const label = String((a?.localisation?.nom) || a?.location_text || '').trim();
+                    const html = [
+                      '<div style="display:flex;align-items:center;gap:4px;transform:translateY(-4px)">',
+                      '<div style="color:#e11d48;font-size:18px;line-height:18px">▲</div>',
+                      label ? `<div style="background:#fff;padding:2px 6px;border:1px solid #e5e7eb;border-radius:12px;font-size:11px;color:#111;box-shadow:0 1px 2px rgba(0,0,0,0.08)">${label}</div>` : '',
+                      '</div>'
+                    ].join('');
+                    const icon = (a.has_signalement ? L.divIcon({ html, className: 'arrow-marker' }) : undefined);
+                    const MarkerEl = icon
+                      ? <AnyMarker key={`alert-${a.id || a.pk || idx}`} position={pos as LatLngTuple} icon={icon}>
+                          <Popup>
+                            <strong>{a.title || a.titre || 'Alerte'}</strong><br />
+                            Niveau: {levelConfig[level as keyof typeof levelConfig].text}<br />
+                            {a.location_text ? (<>
+                              Lieu: {String(a.location_text)}<br />
+                            </>) : null}
+                            Date: {String(a.created_at || a.date || '').replace('T',' ').replace('Z','')}
+                          </Popup>
+                        </AnyMarker>
+                      : <AnyMarker key={`alert-${a.id || a.pk || idx}`} position={pos as LatLngTuple}>
+                          <Popup>
+                            <strong>{a.title || a.titre || 'Alerte'}</strong><br />
+                            Niveau: {levelConfig[level as keyof typeof levelConfig].text}<br />
+                            {a.location_text ? (<>
+                              Lieu: {String(a.location_text)}<br />
+                            </>) : null}
+                            Date: {String(a.created_at || a.date || '').replace('T',' ').replace('Z','')}
+                          </Popup>
+                        </AnyMarker>;
+                    return MarkerEl;
+                    
+                  })}
+
+                  {/* Marqueurs signalements (si géoloc disponibles) */}
+                  {reports.map((r: any, idx: number) => {
+                    const pos = getLatLng(r);
+                    if (!pos) return null;
+                    return (
+                      <AnyMarker key={`rep-${r.id || r.pk || idx}`} position={pos as LatLngTuple}>
                         <Popup>
-                          <strong>{zone.name}</strong><br />
-                          Niveau: {levelConfig[zone.level].text}<br />
-                          Population: {zone.population.toLocaleString()}<br />
-                          Dernière MAJ: {zone.lastUpdate}
+                          <strong>Signalement</strong><br />
+                          {r.description ? (<>Desc: {String(r.description)}<br /></>) : null}
+                          {r.location_text ? (<>Lieu: {String(r.location_text)}<br /></>) : null}
+                          Date: {String(r.created_at || r.date || '').replace('T',' ').replace('Z','')}
                         </Popup>
-                      </Marker>
-                  ))}
-                </MapContainer>
+                      </AnyMarker>
+                    );
+                  })}
+                </AnyMapContainer>
               </CardContent>
             </Card>
           </div>
@@ -225,3 +307,5 @@ const Carte = () => {
 };
 
 export default Carte;
+
+

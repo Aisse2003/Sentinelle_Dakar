@@ -18,6 +18,8 @@ import {
   Settings,
   Archive
 } from "lucide-react";
+import { useTranslation } from 'react-i18next';
+import { getUserProfile } from "@/services/auth";
 
 // Données dynamiques via API
 type Alerte = { id: number; title?: string; message?: string; level?: keyof typeof levelConfig; location?: string; time?: string; affected?: number; status?: string };
@@ -67,7 +69,16 @@ function mapToUiLevel(raw?: string): keyof typeof levelConfig {
   return "info";
 }
 
+function mapToUiStatus(raw?: string): "active" | "resolved" | "archived" | "other" {
+  const v = (raw || "").toLowerCase();
+  if (["active", "actif", "ouvert", "open", "en_cours", "en cours"].includes(v)) return "active";
+  if (["resolved", "resolu", "résolu", "closed", "ferme", "fermé"].includes(v)) return "resolved";
+  if (["archived", "archive", "archivées", "archivée", "archivee"].includes(v)) return "archived";
+  return "other";
+}
+
 const Alertes = () => {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [level, setLevel] = useState<string>("");
   const [photosByAlert, setPhotosByAlert] = useState<Record<number, string[]>>({});
@@ -89,6 +100,7 @@ const Alertes = () => {
   const [lightboxPhotos, setLightboxPhotos] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const { data, status, error } = useApi("alertes", { search: search || undefined, level: level || undefined });
+  const [isAuthority, setIsAuthority] = useState(false);
   const loading = status === "pending";
   const rawAlertes: any[] = Array.isArray(data) ? data : [];
 
@@ -112,13 +124,33 @@ const Alertes = () => {
     });
   }, [rawAlertes]);
 
-  const activeAlerts = alertes.filter((a) => String(a.status || "active").includes("active"));
+  const activeAlerts = alertes.filter((a) => mapToUiStatus(a.status || (a as any).etat) === "active");
   const recentAlerts: RecentAlerte[] = alertes
-    .filter((a) => String(a.status || "").includes("resolved"))
+    .filter((a) => {
+      const s = mapToUiStatus(a.status || (a as any).etat);
+      return s === "resolved" || s === "archived";
+    })
     .map((a) => ({ ...a, resolvedAt: (a as any).resolvedAt ?? (a as any).resolved_at }));
 
-  // Précharger les photos de chaque alerte (limité au top 20 pour éviter trop d'appels)
+  // Déterminer si l'utilisateur est autorité (staff)
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        if (!token) { if (!cancelled) setIsAuthority(false); return; }
+        const me = await getUserProfile();
+        if (!cancelled) setIsAuthority(!!(me?.is_staff || me?.is_superuser));
+      } catch {
+        if (!cancelled) setIsAuthority(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Précharger les photos de chaque alerte (limité au top 20 ; réservé autorités pour éviter 403)
+  useEffect(() => {
+    if (!isAuthority) return; // éviter appels 403 pour les citoyens
     const base = "http://127.0.0.1:8000/api";
     const ids = alertes.map((a) => a.id).filter((id): id is number => typeof id === 'number').slice(0, 20);
     if (ids.length === 0) return;
@@ -140,7 +172,7 @@ const Alertes = () => {
       setPhotosByAlert(map);
     });
     return () => { cancelled = true; };
-  }, [alertes.length]);
+  }, [alertes.length, isAuthority]);
   return (
     <>
     <Layout>
@@ -148,21 +180,17 @@ const Alertes = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold gradient-ocean bg-clip-text text-transparent">
-              Centre d'Alertes
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Gestion et suivi des alertes d'inondation en temps réel
-            </p>
+            <h1 className="text-3xl font-bold gradient-ocean bg-clip-text text-transparent">{t('alerts.title')}</h1>
+            <p className="text-muted-foreground mt-1">{t('dashboard.subtitle')}</p>
           </div>
           <div className="flex space-x-2 mt-4 md:mt-0">
             <Button variant="outline">
               <Settings className="h-4 w-4 mr-2" />
-              Préférences
+              {t('common.preferences', { defaultValue: 'Préférences' })}
             </Button>
             <Button>
               <Volume2 className="h-4 w-4 mr-2" />
-              Test Alerte
+              {t('common.testAlert', { defaultValue: 'Test Alerte' })}
             </Button>
           </div>
         </div>
@@ -173,7 +201,7 @@ const Alertes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm opacity-90">Alertes Actives</p>
+                  <p className="text-sm opacity-90">{t('alerts.active', { defaultValue: 'Alertes Actives' })}</p>
                   <p className="text-2xl font-bold">3</p>
                 </div>
                 <AlertTriangle className="h-8 w-8 opacity-80" />
@@ -185,7 +213,7 @@ const Alertes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Personnes Affectées</p>
+                  <p className="text-sm text-muted-foreground">{t('alerts.affected', { defaultValue: 'Personnes Affectées' })}</p>
                   <p className="text-2xl font-bold text-foreground">148K</p>
                 </div>
                 <Bell className="h-8 w-8 text-muted-foreground" />
@@ -197,7 +225,7 @@ const Alertes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Résolues Aujourd'hui</p>
+                  <p className="text-sm text-muted-foreground">{t('alerts.resolvedToday', { defaultValue: "Résolues Aujourd'hui" })}</p>
                   <p className="text-2xl font-bold text-foreground">7</p>
                 </div>
                 <Archive className="h-8 w-8 text-muted-foreground" />
@@ -209,7 +237,7 @@ const Alertes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm opacity-90">Temps Moyen</p>
+                  <p className="text-sm opacity-90">{t('alerts.avgTime', { defaultValue: 'Temps Moyen' })}</p>
                   <p className="text-2xl font-bold">23min</p>
                 </div>
                 <Clock className="h-8 w-8 opacity-80" />
@@ -225,7 +253,7 @@ const Alertes = () => {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Rechercher des alertes..."
+                  placeholder={t('common.search')+ '...'}
                   className="pl-10"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -234,12 +262,12 @@ const Alertes = () => {
               <div className="flex items-center space-x-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <select className="border rounded-md p-2 bg-background" value={level} onChange={(e) => setLevel(e.target.value)}>
-                  <option value="">Tous niveaux</option>
-                  <option value="critical">Critique</option>
-                  <option value="high">Élevé</option>
-                  <option value="medium">Moyen</option>
-                  <option value="info">Info</option>
-                  <option value="resolved">Résolu</option>
+                  <option value="">{t('alerts.levelAll', { defaultValue: 'Tous niveaux' })}</option>
+                  <option value="critical">{t('alerts.levelCritical', { defaultValue: 'Critique' })}</option>
+                  <option value="high">{t('alerts.levelHigh', { defaultValue: 'Élevé' })}</option>
+                  <option value="medium">{t('alerts.levelMedium', { defaultValue: 'Moyen' })}</option>
+                  <option value="info">{t('alerts.levelInfo', { defaultValue: 'Info' })}</option>
+                  <option value="resolved">{t('alerts.levelResolved', { defaultValue: 'Résolu' })}</option>
                 </select>
               </div>
             </div>
@@ -249,14 +277,14 @@ const Alertes = () => {
         {/* Alerts Tabs */}
         <Tabs defaultValue="active" className="space-y-4">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="active">Alertes Actives</TabsTrigger>
-            <TabsTrigger value="recent">Récentes</TabsTrigger>
-            <TabsTrigger value="archived">Archivées</TabsTrigger>
+            <TabsTrigger value="active">{t('alerts.active', { defaultValue: 'Alertes Actives' })}</TabsTrigger>
+            <TabsTrigger value="recent">{t('alerts.recent', { defaultValue: 'Récentes' })}</TabsTrigger>
+            <TabsTrigger value="archived">{t('alerts.archived', { defaultValue: 'Archivées' })}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-4">
-            {loading && <p className="text-sm text-muted-foreground">Chargement...</p>}
-            {error && <p className="text-sm text-destructive">Impossible de charger les alertes.</p>}
+            {loading && <p className="text-sm text-muted-foreground">{t('common.loading')}</p>}
+            {error && <p className="text-sm text-destructive">{t('alerts.loadError', { defaultValue: 'Impossible de charger les alertes.' })}</p>}
             {!loading && activeAlerts.map((alert) => {
               const config = levelConfig[alert.level || "info"];
               return (
@@ -282,13 +310,13 @@ const Alertes = () => {
                             setDetailData({ alert, photos, signalement: first || undefined });
                             setDetailOpen(true);
                           } catch (e) {
-                            window.alert("Impossible de charger les détails.");
+                            window.alert(t('alerts.detailsError', { defaultValue: 'Impossible de charger les détails.' }) as string);
                           }
                         }}>
-                          Détails
+                          {t('alerts.details', { defaultValue: 'Détails' })}
                         </Button>
                         <Button size="sm">
-                          Actions
+                          {t('common.actions', { defaultValue: 'Actions' })}
                         </Button>
                       </div>
                     </div>
@@ -315,7 +343,7 @@ const Alertes = () => {
                       <div className="flex items-center space-x-2 text-muted-foreground">
                         <Bell className="h-4 w-4" />
                         {typeof alert.affected === 'number' && (
-                          <span>{alert.affected.toLocaleString()} personnes affectées</span>
+                          <span>{alert.affected.toLocaleString()} {t('alerts.peopleAffected', { defaultValue: 'personnes affectées' })}</span>
                         )}
                       </div>
                     </div>
@@ -323,7 +351,7 @@ const Alertes = () => {
                     {alert.level === 'critical' && (
                       <div className="mt-4 p-3 rounded-lg bg-destructive/20 border border-destructive/30">
                         <p className="text-sm font-medium text-destructive">
-                          ⚠️ Alerte Critique - Action immédiate requise
+                          {t('alerts.criticalNotice', { defaultValue: '⚠️ Alerte Critique - Action immédiate requise' })}
                         </p>
                       </div>
                     )}
@@ -334,8 +362,8 @@ const Alertes = () => {
           </TabsContent>
 
           <TabsContent value="recent" className="space-y-4">
-            {loading && <p className="text-sm text-muted-foreground">Chargement...</p>}
-            {error && <p className="text-sm text-destructive">Impossible de charger les alertes.</p>}
+            {loading && <p className="text-sm text-muted-foreground">{t('common.loading')}</p>}
+            {error && <p className="text-sm text-destructive">{t('alerts.loadError', { defaultValue: 'Impossible de charger les alertes.' })}</p>}
             {!loading && recentAlerts.map((alert) => {
               const config = levelConfig[alert.level];
               return (
@@ -351,7 +379,7 @@ const Alertes = () => {
                       </div>
                       <div className="text-right text-sm text-muted-foreground">
                         <p>{alert.time}</p>
-                        <p>Résolu à {alert.resolvedAt}</p>
+                        <p>{t('alerts.resolvedAt', { defaultValue: 'Résolu à' })} {alert.resolvedAt}</p>
                       </div>
                     </div>
                     {(photosByAlert[alert.id as number]?.length || 0) > 0 && (
@@ -371,12 +399,12 @@ const Alertes = () => {
             <Card>
               <CardContent className="p-8 text-center">
                 <Archive className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">Alertes Archivées</h3>
+                <h3 className="text-lg font-medium text-foreground mb-2">{t('alerts.archived', { defaultValue: 'Alertes Archivées' })}</h3>
                 <p className="text-muted-foreground">
-                  Consultez l'historique complet des alertes dans la section Historique.
+                  {t('alerts.checkHistory', { defaultValue: "Consultez l'historique complet des alertes dans la section Historique." })}
                 </p>
                 <Button className="mt-4" variant="outline">
-                  Voir l'Historique
+                  {t('nav.history')}
                 </Button>
               </CardContent>
             </Card>
@@ -388,51 +416,51 @@ const Alertes = () => {
       <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4" onClick={() => setDetailOpen(false)}>
         <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
           <div className="p-4 border-b flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Détails de l'alerte</h3>
-            <button className="text-sm text-muted-foreground hover:text-foreground" onClick={() => setDetailOpen(false)}>Fermer</button>
+            <h3 className="text-lg font-semibold">{t('alerts.details', { defaultValue: "Détails de l'alerte" })}</h3>
+            <button className="text-sm text-muted-foreground hover:text-foreground" onClick={() => setDetailOpen(false)}>{t('common.close', { defaultValue: 'Fermer' })}</button>
           </div>
           <div className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Titre</p>
+                <p className="text-sm text-muted-foreground">{t('common.title')}</p>
                 <p className="font-medium text-foreground">{detailData.alert.title || "Alerte"}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Niveau</p>
+                <p className="text-sm text-muted-foreground">{t('alerts.level', { defaultValue: 'Niveau' })}</p>
                 <p className="font-medium capitalize">{detailData.alert.level}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Localisation</p>
+                <p className="text-sm text-muted-foreground">{t('map.locate')}</p>
                 <p className="font-medium">{detailData.alert.location || detailData.signalement?.location_text || "-"}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Date</p>
+                <p className="text-sm text-muted-foreground">{t('common.date')}</p>
                 <p className="font-medium">{String(detailData.alert.time || detailData.signalement?.created_at || "").replace("T", " ").replace("Z", "")}</p>
               </div>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Message</p>
+              <p className="text-sm text-muted-foreground">{t('alerts.message', { defaultValue: 'Message' })}</p>
               <p className="text-foreground">{detailData.alert.message || detailData.signalement?.description || ""}</p>
             </div>
             {detailData.signalement && (detailData.signalement.prenom || detailData.signalement.nom || detailData.signalement.phone) && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Prénom</p>
+                  <p className="text-sm text-muted-foreground">{t('report.firstName')}</p>
                   <p className="font-medium">{detailData.signalement.prenom || "-"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Nom</p>
+                  <p className="text-sm text-muted-foreground">{t('report.lastName')}</p>
                   <p className="font-medium">{detailData.signalement.nom || "-"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Téléphone</p>
+                  <p className="text-sm text-muted-foreground">{t('report.phone')}</p>
                   <p className="font-medium">{detailData.signalement.phone || "-"}</p>
                 </div>
               </div>
             )}
             {(detailData.photos?.length || 0) > 0 && (
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Photos</p>
+                <p className="text-sm text-muted-foreground mb-2">{t('report.photos')}</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {detailData.photos.map((u, idx) => (
                     <img

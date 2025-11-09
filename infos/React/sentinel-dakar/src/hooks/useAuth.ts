@@ -14,13 +14,14 @@ export const useAuth = () => {
     setLoading(true);
     setError(null);
     try {
-      const isEmail = identifier.includes("@");
-      const payload = isEmail ? { email: identifier, password } : { username: identifier, password };
-      const response = await axios.post(`${API_BASE}login/`, payload);
-      const { token, user } = response.data;
-      localStorage.setItem("token", token);
-      setToken(token);
-      setUser(user);
+      // JWT (SimpleJWT): /api/auth/token/ -> { access, refresh }
+      const payload = { username: identifier, password };
+      const response = await axios.post(`${API_BASE}token/`, payload, { headers: { "Content-Type": "application/json" } });
+      const access = (response.data as any)?.access;
+      if (!access) throw new Error("Token manquant");
+      localStorage.setItem("token", access);
+      setToken(access);
+      setUser(null);
     } catch (e: any) {
       const apiMsg = e?.response?.data?.error || e?.response?.data?.detail || null;
       setError(apiMsg || "Échec de la connexion");
@@ -46,10 +47,12 @@ export const useAuth = () => {
       const data = e?.response?.data;
       if (!message && data && typeof data === 'object') {
         try {
-          const parts = Object.values(data).flat().map((v: any) => Array.isArray(v) ? v.join(" ") : String(v));
+          const parts = (Object.values(data) as any[])
+            .flat()
+            .map((v: any) => (Array.isArray(v) ? v.join(" ") : String(v)));
           message = parts.join(" ") || null;
-        } catch {
-          /* ignore */
+    } catch {
+          // ignore
         }
       }
       setError(message || "Échec de l’inscription");
@@ -67,3 +70,7 @@ export const useAuth = () => {
 
   return { user, token, loading, error, login, register, logout };
 };
+
+
+
+

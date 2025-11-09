@@ -6,7 +6,9 @@ import { AlertCard } from "@/components/dashboard/AlertCard";
 import { MapPreview } from "@/components/dashboard/MapPreview";
 import { WeatherCard } from "@/components/dashboard/WeatherCard";
 import { Button } from "@/components/ui/button";
-import { useApi } from "../hooks/useApi";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RecentActivity, ActivityItem } from "@/components/dashboard/RecentActivity";
+import { Sparkline } from "@/components/charts/Sparkline";
 import { 
   Droplets, 
   AlertTriangle, 
@@ -15,22 +17,101 @@ import {
   Bell, 
   Plus 
 } from "lucide-react";
+import { useApi } from "../hooks/useApi";
+import { useRealtime } from "@/hooks/useRealtime";
+import { useTranslation } from 'react-i18next';
 
 const Index = () => {
+  const { t } = useTranslation();
+  // Période sélectionnée (7j, 30j, 90j)
+  const [period, setPeriod] = useState<"7j" | "30j" | "90j">("30j");
+
+  // Données via API
+  const { data: alertsData } = useApi("alertes");
+  const { data: reportsData } = useApi("signalements");
+  const { lastEvent } = useRealtime("http://127.0.0.1:8000/api/realtime/stream");
+
+  // KPI dérivés (fallback si pas de données)
+  const zonesSurveillees = 24; // TODO: brancher si endpoint dispo
+  const alertesActives = Array.isArray(alertsData) ? alertsData.filter((a: any) => String(a.status || a.etat || "active").includes("active")).length : 3;
+  const signalementsSemaine = Array.isArray(reportsData) ? reportsData.length : 127;
+  const predictionIa = 78; // placeholder
+
+  // Sparkline: dérivé des signalements par jour (mock si absent)
+  const [sparkData, setSparkData] = useState<number[]>([]);
+  useEffect(() => {
+    if (Array.isArray(reportsData) && reportsData.length > 0) {
+      // Regrouper par jour sur 30 jours
+      const byDay: Record<string, number> = {};
+      const now = new Date();
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        byDay[key] = 0;
+      }
+      for (const r of reportsData) {
+        const dateStr = String(r.created_at || r.date || r.time || "").slice(0, 10);
+        if (byDay[dateStr] !== undefined) byDay[dateStr] += 1;
+      }
+      setSparkData(Object.values(byDay));
+    } else {
+      // fallback aléatoire
+      const data = Array.from({ length: 30 }, (_, i) => {
+        const base = 20 + Math.sin(i / 3) * 5;
+        const noise = Math.random() * 6 - 3;
+        return Math.max(0, Math.round(base + noise));
+      });
+      setSparkData(data);
+    }
+  }, [reportsData]);
+
+  // Mise à jour sparkline légère sur événement temps réel mock
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (typeof lastEvent.payload?.value === 'number') {
+      setSparkData((prev) => {
+        const next = prev.length ? [...prev.slice(1), lastEvent.payload.value] : prev;
+        return next.length ? next : prev;
+      });
+    }
+  }, [lastEvent]);
+
+  // Activité: mapper alertes -> ActivityItem
+  const recentActivity: ActivityItem[] = Array.isArray(alertsData)
+    ? alertsData.slice(0, 6).map((a: any, idx: number) => ({
+        id: String(a.id ?? a.pk ?? idx),
+        type: String(a.level || a.niveau || "info").toLowerCase().includes("crit") ? "alert" : "info",
+        title: a.title || a.titre || a.name || "Alerte",
+        user: a.source || a.emetteur || "Système",
+        time: String(a.time || a.created_at || a.date || "").replace("T", " ").replace("Z", ""),
+      }))
+    : [];
+
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Header */}
+        {/* Header enrichi */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold gradient-ocean bg-clip-text text-transparent">
-              Système de Surveillance des Inondations
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Surveillance en temps réel des risques d'inondation à Dakar
-            </p>
+            <h1 className="text-3xl font-bold gradient-ocean bg-clip-text text-transparent">{t('dashboard.title')}</h1>
+            <p className="text-muted-foreground mt-1">{t('dashboard.subtitle')}</p>
           </div>
-          <div className="flex space-x-2 mt-4 md:mt-0">
+          <div className="flex items-center space-x-2 mt-4 md:mt-0">
+            <div className="hidden md:flex items-center text-sm text-muted-foreground mr-2">
+              Période:
+            </div>
+            <div className="flex items-center rounded-md border bg-background text-sm">
+              {["7j", "30j", "90j"].map((p, idx) => (
+                <button
+                  key={p}
+                  className={`px-3 py-1.5 ${p === period ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`}
+                  onClick={() => setPeriod(p as any)}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
             <Button variant="outline">
               <Bell className="h-4 w-4 mr-2" />
               Alertes
@@ -65,7 +146,7 @@ const Index = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard
             title="Zones Surveillées"
-            value="24"
+            value={String(zonesSurveillees)}
             description="Capteurs actifs"
             icon={Droplets}
             variant="ocean"
@@ -74,7 +155,7 @@ const Index = () => {
           />
           <StatsCard
             title="Alertes Actives"
-            value="3"
+            value={String(alertesActives)}
             description="Niveau élevé"
             icon={AlertTriangle}
             variant="alert"
@@ -83,7 +164,7 @@ const Index = () => {
           />
           <StatsCard
             title="Signalements Citoyens"
-            value="127"
+            value={String(signalementsSemaine)}
             description="Cette semaine"
             icon={Users}
             trend="up"
@@ -91,7 +172,7 @@ const Index = () => {
           />
           <StatsCard
             title="Prédiction IA"
-            value="78%"
+            value={`${predictionIa}%`}
             description="Précision du modèle"
             icon={TrendingUp}
             variant="success"
@@ -106,40 +187,39 @@ const Index = () => {
           <div className="space-y-4">
             <h2 className="text-xl font-semibold flex items-center">
               <AlertTriangle className="h-5 w-5 mr-2 text-danger" />
-              Alertes Récentes
+              {t('dashboard.recentAlerts')}
             </h2>
+            {/* Trois alertes les plus récentes basées sur alertsData */}
+            {Array.isArray(alertsData) && alertsData.slice(0, 3).map((a: any, i: number) => (
             <AlertCard
-              level="critical"
-              title="Risque d'inondation majeur"
-              message="Niveau d'eau critique détecté dans la zone de Guédiawaye. Évacuation recommandée."
-              location="Guédiawaye, Pikine"
-              time="Il y a 5 min"
-              isActive
-            />
-            <AlertCard
-              level="high"
-              title="Fortes précipitations prévues"
-              message="Les modèles météo prévoient 50mm de pluie dans les 3 prochaines heures."
-              location="Médina, Plateau"
-              time="Il y a 15 min"
-            />
-            <AlertCard
-              level="medium"
-              title="Surveillance renforcée"
-              message="Niveau d'eau en hausse constante depuis 2h. Situation à surveiller."
-              location="Yeumbeul Sud"
-              time="Il y a 1h"
-            />
+                key={String(a.id ?? a.pk ?? i)}
+                level={(String(a.level || a.niveau || 'info').toLowerCase().includes('crit') ? 'critical' : (String(a.level || a.niveau || 'info').toLowerCase().includes('high') ? 'high' : (String(a.level || a.niveau || 'info').toLowerCase().includes('medium') ? 'medium' : 'info'))) as any}
+                title={a.title || a.titre || a.name || 'Alerte'}
+                message={a.message || a.description || ''}
+                location={(() => { const loc=a.location || a.localisation; return typeof loc==='object'&&loc? (loc.nom||JSON.stringify(loc)) : (loc||'-'); })()}
+                time={String(a.time || a.created_at || a.date || '')}
+                isActive={String(a.status || a.etat || 'active').includes('active')}
+              />
+            ))}
           </div>
 
-          {/* Center Column - Map */}
-          <div>
+          {/* Center Column - Map + Sparkline */}
+          <div className="space-y-4">
             <MapPreview />
+            <Card>
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle className="text-sm">{t('dashboard.trend30')}</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Sparkline data={sparkData} height={90} />
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Right Column - Weather */}
-          <div>
+          {/* Right Column - Weather + Recent Activity */}
+          <div className="space-y-4">
             <WeatherCard />
+            <RecentActivity items={recentActivity} />
           </div>
         </div>
       </div>

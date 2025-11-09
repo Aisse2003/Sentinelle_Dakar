@@ -2,12 +2,16 @@ import { useEffect, useState } from "react";
 import LoginForm from "@/components/auth/LoginForm";
 import RegisterForm from "@/components/auth/RegisterForm";
 import logo from "@/assets/logo (2).png";
-import { useLocation } from "react-router-dom";
+import hero from "@/assets/flood.jpg";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
+import { useTranslation } from 'react-i18next';
 
 export default function Auth() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<"login" | "register">("login");
+  const { t } = useTranslation();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -17,33 +21,25 @@ export default function Auth() {
   }, [location.search]);
 
   return (
-    <Layout hideFooter>
-      <div className="min-h-[calc(100vh-8rem)] p-0 md:p-2 flex items-center justify-center">
-        <div className="w-full max-w-2xl">
-          <div className="flex flex-col items-center mb-6">
-            <img src={logo} alt="Sentinel Dakar" className="h-16 w-16 rounded-2xl object-contain shadow-depth" />
-            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-foreground">Sentinel Dakar</h1>
-            <p className="text-sm text-muted-foreground">Accès et création de compte</p>
-          </div>
+    <Layout hideFooter hideNavbar>
+      <div className="relative min-h-screen">
+        <img src={hero} alt="Sentinel Dakar" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-primary/60" />
+        <div className="relative min-h-screen flex items-center justify-center p-6">
+          {/* Lien inscription en haut à droite */}
+              <button
+            className="absolute top-6 right-6 text-sm text-primary-foreground/90 hover:text-white"
+            onClick={() => navigate('/auth?tab=register')}
+              >
+            {t('auth.createNew')}
+              </button>
 
-          <div className="bg-white rounded-2xl shadow-lg border border-border">
-            <div className="grid grid-cols-2">
-              <button
-                className={`py-3 font-medium rounded-tl-2xl ${tab === "login" ? "bg-primary text-primary-foreground" : "bg-transparent"}`}
-                onClick={() => setTab("login")}
-              >
-                Connexion
-              </button>
-              <button
-                className={`py-3 font-medium rounded-tr-2xl ${tab === "register" ? "bg-primary text-primary-foreground" : "bg-transparent"}`}
-                onClick={() => setTab("register")}
-              >
-                Inscription
-              </button>
+          <div className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg border border-border p-6 md:p-8">
+            <div className="flex items-center justify-start mb-4">
+              <img src={logo} alt="Sentinel Dakar" className="h-12 w-12 rounded-2xl object-contain shadow-depth" />
             </div>
-            <div className="p-4 md:p-6">
+            <h1 className="text-3xl font-bold text-left mb-6">{tab === 'login' ? t('auth.loginTitle') : t('auth.registerTitle')}</h1>
               {tab === "login" ? <LoginForm showHeader={false} /> : <RegisterForm showHeader={false} />}
-            </div>
           </div>
         </div>
       </div>

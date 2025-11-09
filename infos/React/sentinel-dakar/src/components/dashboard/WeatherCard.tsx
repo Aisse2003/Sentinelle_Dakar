@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Cloud, CloudRain, Sun, Wind, Droplets, Thermometer } from "lucide-react";
+import { useWeather } from "@/hooks/useWeather";
+import { useGeolocation } from "@/hooks/useGeolocation.tsx";
 
 const weatherData = {
   location: "Dakar, Sénégal",
@@ -20,7 +22,13 @@ const weatherData = {
 };
 
 export function WeatherCard() {
-  const CurrentIcon = weatherData.current.icon;
+  const { position } = useGeolocation();
+  const lat = position?.latitude ?? 14.7167;
+  const lon = position?.longitude ?? -17.4677;
+  const { data, status } = useWeather({ latitude: lat, longitude: lon });
+  const loading = status === "pending";
+  const hasApi = !!data;
+  const CurrentIcon = hasApi ? Cloud : weatherData.current.icon;
 
   return (
     <Card className="h-full">
@@ -28,19 +36,19 @@ export function WeatherCard() {
         <CardTitle className="flex items-center justify-between">
           <span>Conditions Météo</span>
           <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-            ANACIM
+            {hasApi ? "Open‑Meteo" : "ANACIM"}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Current weather */}
         <div className="text-center p-4 rounded-lg gradient-ocean text-primary-foreground">
-          <p className="text-sm opacity-90 mb-1">{weatherData.location}</p>
+          <p className="text-sm opacity-90 mb-1">{hasApi ? data.locationLabel : weatherData.location}</p>
           <div className="flex items-center justify-center space-x-3 mb-2">
             <CurrentIcon className="h-8 w-8" />
-            <span className="text-3xl font-bold">{weatherData.current.temperature}°C</span>
+            <span className="text-3xl font-bold">{hasApi ? data.temperatureC : weatherData.current.temperature}°C</span>
           </div>
-          <p className="text-sm opacity-90">{weatherData.current.condition}</p>
+          <p className="text-sm opacity-90">{hasApi ? data.condition : weatherData.current.condition}</p>
         </div>
 
         {/* Weather details */}
@@ -49,28 +57,28 @@ export function WeatherCard() {
             <Droplets className="h-4 w-4 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">Humidité</p>
-              <p className="text-sm font-medium">{weatherData.current.humidity}%</p>
+              <p className="text-sm font-medium">{hasApi ? (data.humidityPct ?? weatherData.current.humidity) : weatherData.current.humidity}%</p>
             </div>
           </div>
           <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/50">
             <Wind className="h-4 w-4 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">Vent</p>
-              <p className="text-sm font-medium">{weatherData.current.windSpeed} km/h</p>
+              <p className="text-sm font-medium">{hasApi ? (data.windKmh ?? weatherData.current.windSpeed) : weatherData.current.windSpeed} km/h</p>
             </div>
           </div>
           <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/50">
             <CloudRain className="h-4 w-4 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">Précipitations</p>
-              <p className="text-sm font-medium">{weatherData.current.precipitation} mm</p>
+              <p className="text-sm font-medium">{hasApi ? (data.precipitationMm ?? weatherData.current.precipitation) : weatherData.current.precipitation} mm</p>
             </div>
           </div>
           <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/50">
             <Thermometer className="h-4 w-4 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">Ressenti</p>
-              <p className="text-sm font-medium">{weatherData.current.temperature + 2}°C</p>
+              <p className="text-sm font-medium">{(hasApi ? data.temperatureC : weatherData.current.temperature) + 2}°C</p>
             </div>
           </div>
         </div>

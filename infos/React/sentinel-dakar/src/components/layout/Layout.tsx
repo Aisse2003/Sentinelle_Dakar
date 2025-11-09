@@ -1,25 +1,24 @@
 import { ReactNode } from "react";
 import { Navbar } from "./Navbar";
-import { Footer } from "./Footer";
+import { SideNav } from "./SideNav";
 
 interface LayoutProps {
   children: ReactNode;
   hideFooter?: boolean;
+  hideNavbar?: boolean;
 }
 
-export function Layout({ children, hideFooter = false }: LayoutProps) {
+export function Layout({ children, hideFooter = false, hideNavbar = false }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Navbar en haut */}
-      <Navbar />
+      {/* Barre latérale gauche */}
+      {!hideNavbar && <SideNav />}
 
       {/* Contenu principal */}
-      <main className="flex-1 pt-16">
-        <div className="p-4 md:p-6">{children}</div>
+      <main className={hideNavbar ? "flex-1 pt-0" : "flex-1"}>
+        <div className={hideNavbar ? "p-4 md:p-6" : "p-4 md:p-6 md:ml-64 ml-64"}>{children}</div>
       </main>
-
-      {/* Footer en bas */}
-      {!hideFooter && <Footer />}
     </div>
   );
 }

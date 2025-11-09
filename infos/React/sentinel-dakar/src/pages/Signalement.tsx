@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { Layout } from "@/components/layout/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,13 @@ import {
   CheckCircle,
   Clock,
   Eye,
-  Plus
+  Plus,
+  X
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { useGeolocation } from "@/hooks/useGeolocation.tsx";
 
 const recentReports = [
   {
@@ -55,11 +61,17 @@ const statusConfig = {
 };
 
 const Signalement = () => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { position } = useGeolocation();
   const [typeIncident, setTypeIncident] = useState("");
   const [location, setLocation] = useState("");
   const [severity, setSeverity] = useState("low");
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [submittedPreviewUrls, setSubmittedPreviewUrls] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
@@ -73,9 +85,15 @@ const Signalement = () => {
         setLocation(`${pos.coords.latitude}, ${pos.coords.longitude}`);
       });
     } else {
-      alert("La géolocalisation n'est pas supportée par votre navigateur.");
+      alert(t('report.geolocUnsupported') as string);
     }
   };
+
+  useEffect(() => {
+    if (position && (!location || /^\s*$/.test(location))) {
+      setLocation(`${position.latitude}, ${position.longitude}`);
+    }
+  }, [position]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,19 +110,47 @@ const Signalement = () => {
 
     try {
       await createSignalement(formData);
-      alert("Signalement envoyé !");
-      // Reset formulaire
-      setTypeIncident("");
-      setLocation("");
-      setSeverity("low");
-      setDescription("");
-      setPhotos([]);
-      setPrenom("");
-      setNom("");
-      setPhone("");
+      // Invalider les listes d'alertes pour forcer le rechargement à l'arrivée
+      try { await queryClient.invalidateQueries({ queryKey: ["alertes"], exact: false }); } catch {}
+      try { await axios.get('http://127.0.0.1:8000/api/alertes/'); } catch {}
+      navigate('/alertes');
+      return;
     } catch (error) {
-      alert("Échec de l\'envoi du signalement. Veuillez réessayer.");
+      // Ne pas afficher d'alerte intrusive en cas d'échec
+      // Optionnel: journaliser l'erreur pour debug
+      console.error(error);
     }
+  };
+
+  // Gestion des URLs d'aperçu pour éviter les fuites mémoire
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [previewUrls]);
+
+  const addFiles = (files: File[]) => {
+    if (!files.length) return;
+    setPhotos((prev) => {
+      const next = [...prev, ...files].slice(0, 5);
+      // recalculer les URLs d'aperçu selon next
+      const nextUrls = next.map((f) => URL.createObjectURL(f));
+      // révoquer les anciennes URLs
+      previewUrls.forEach((u) => URL.revokeObjectURL(u));
+      setPreviewUrls(nextUrls);
+      return next;
+    });
+  };
+
+  const removePhotoAt = (index: number) => {
+    setPhotos((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      // rebuild preview urls
+      previewUrls.forEach((u) => URL.revokeObjectURL(u));
+      const nextUrls = next.map((f) => URL.createObjectURL(f));
+      setPreviewUrls(nextUrls);
+      return next;
+    });
   };
 
   return (
@@ -113,10 +159,10 @@ const Signalement = () => {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold gradient-ocean bg-clip-text text-transparent">
-            Signalement Citoyen
+            {t('report.pageTitle')}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Aidez-nous à surveiller les inondations en signalant les incidents
+            {t('report.pageSubtitle')}
           </p>
         </div>
 
@@ -127,14 +173,14 @@ const Signalement = () => {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Plus className="h-5 w-5 mr-2 text-primary" />
-                  Nouveau Signalement
+                  {t('report.newReport')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Type */}
                   <div className="space-y-2">
-                    <Label htmlFor="type">Type d'incident *</Label>
+                    <Label htmlFor="type">{t('report.type')} *</Label>
                     <select 
                       id="type" 
                       className="w-full p-3 border border-input rounded-lg bg-background"
@@ -142,7 +188,7 @@ const Signalement = () => {
                       onChange={(e) => setTypeIncident(e.target.value)}
                       required
                     >
-                      <option value="">Sélectionnez un type</option>
+                      <option value="">{t('report.selectType')}</option>
                       <option value="flooding">Inondation active</option>
                       <option value="water_accumulation">Accumulation d'eau</option>
                       <option value="blocked_road">Route bloquée</option>
@@ -153,7 +199,7 @@ const Signalement = () => {
 
                   {/* Localisation */}
                   <div className="space-y-2">
-                    <Label htmlFor="location">Localisation *</Label>
+                    <Label htmlFor="location">{t('report.location')} *</Label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input 
@@ -167,13 +213,13 @@ const Signalement = () => {
                     </div>
                     <Button type="button" variant="outline" size="sm" className="mt-2" onClick={handleUseLocation}>
                       <MapPin className="h-4 w-4 mr-2" />
-                      Utiliser ma position
+                      {t('report.useMyLocation')}
                     </Button>
                   </div>
 
                   {/* Gravité */}
                   <div className="space-y-2">
-                    <Label>Niveau de gravité *</Label>
+                    <Label>{t('report.severity')} *</Label>
                     <div className="grid grid-cols-3 gap-2">
                       {["low", "medium", "high"].map((level) => (
                         <label key={level} className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-accent/50">
@@ -197,7 +243,7 @@ const Signalement = () => {
 
                   {/* Description */}
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description *</Label>
+                    <Label htmlFor="description">{t('report.description')} *</Label>
                     <Textarea 
                       id="description"
                       placeholder="Décrivez la situation observée..."
@@ -210,7 +256,7 @@ const Signalement = () => {
 
                   {/* Upload photos */}
                   <div className="space-y-2">
-                    <Label>Photos (optionnel)</Label>
+                    <Label>{t('report.photos')}</Label>
                     <div
                       className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:bg-accent/50 transition-colors cursor-pointer"
                       onClick={() => fileInputRef.current?.click()}
@@ -219,12 +265,12 @@ const Signalement = () => {
                         e.preventDefault();
                         e.stopPropagation();
                         const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
-                        if (files.length) setPhotos(prev => [...prev, ...files].slice(0, 5));
+                        addFiles(files);
                       }}
                     >
                       <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground mb-2">
-                        Glissez vos photos ici ou cliquez pour sélectionner
+                        {t('report.dragHere')}
                       </p>
                       <input
                         ref={fileInputRef}
@@ -233,37 +279,56 @@ const Signalement = () => {
                         accept="image/*"
                         onChange={(e) => {
                           const files = e.target.files ? Array.from(e.target.files) : [];
-                          if (files.length) setPhotos(prev => [...prev, ...files].slice(0, 5));
+                          addFiles(files);
                         }}
                         style={{ display: 'none' }}
                       />
-                      <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                      >
                         <Camera className="h-4 w-4 mr-2" />
-                        Choisir des fichiers
+                        {t('report.chooseFiles')}
                       </Button>
                       {photos.length > 0 && (
                         <p className="text-xs text-muted-foreground mt-2">
-                          {photos.length} photo(s) sélectionnée(s)
+                          {t('report.selectedCount', { count: photos.length })}
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-2">
-                        PNG, JPG jusqu'à 10MB - Maximum 5 photos
+                        {t('report.formatsHint')}
                       </p>
                     </div>
+
+                    {/* Aperçu avant envoi */}
+                    {previewUrls.length > 0 && (
+                      <div className="mt-3 grid grid-cols-3 md:grid-cols-5 gap-2">
+                        {previewUrls.map((src, i) => (
+                          <div key={src} className="relative group">
+                            <img src={src} alt={`aperçu-${i}`} className="w-full h-24 object-cover rounded" />
+                            <button type="button" aria-label="Supprimer" onClick={() => removePhotoAt(i)} className="absolute top-1 right-1 bg-black/60 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Contact */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="prenom">Prénom (optionnel)</Label>
+                    <Label htmlFor="prenom">{t('report.firstName')}</Label>
                       <Input id="prenom" placeholder="Votre prénom" value={prenom} onChange={(e) => setPrenom(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="nom">Nom (optionnel)</Label>
+                    <Label htmlFor="nom">{t('report.lastName')}</Label>
                       <Input id="nom" placeholder="Votre nom" value={nom} onChange={(e) => setNom(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Téléphone (optionnel)</Label>
+                    <Label htmlFor="phone">{t('report.phone')}</Label>
                       <Input id="phone" placeholder="Numéro de téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} />
                     </div>
                   </div>
@@ -273,12 +338,12 @@ const Signalement = () => {
                     {isSubmitting ? (
                       <>
                         <Clock className="h-4 w-4 mr-2 animate-spin" />
-                        Envoi en cours...
+                        {t('report.sending')}
                       </>
                     ) : (
                       <>
                         <AlertTriangle className="h-4 w-4 mr-2" />
-                        Envoyer le signalement
+                        {t('report.send')}
                       </>
                     )}
                   </Button>
@@ -338,6 +403,23 @@ const Signalement = () => {
           </div>
         </div>
       </div>
+      {/* Aperçu après enregistrement */}
+      {submittedPreviewUrls.length > 0 && (
+        <div className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Photos envoyées</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                {submittedPreviewUrls.map((src, i) => (
+                  <img key={`${src}-${i}`} src={src} alt={`envoyee-${i}`} className="w-full h-20 object-cover rounded" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </Layout>
   );
 };

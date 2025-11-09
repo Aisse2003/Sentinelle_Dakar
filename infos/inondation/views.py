@@ -4,7 +4,7 @@ from .serializers import LocalisationSerializer, CapteurSerializer, MesureSerial
 from .serializers import RegisterSerializer
 from django.contrib.auth.models import User
 
-from rest_framework import generics, status
+from rest_framework import generics, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth import authenticate
@@ -14,8 +14,12 @@ from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
-from .models import Localisation, Alerte, Signalement, SignalementPhoto
+from .models import Localisation, Alerte, Signalement, SignalementPhoto, Degat, DegatPiece, AssistanceRequest
+from django.db.models import Q
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from urllib.parse import urlencode
+from urllib.request import urlopen, Request
+import json as pyjson
 
 class LocalisationViewSet(viewsets.ModelViewSet):
     queryset = Localisation.objects.all()
@@ -32,6 +36,40 @@ class MesureViewSet(viewsets.ModelViewSet):
 class AlerteViewSet(viewsets.ModelViewSet):
     queryset = Alerte.objects.all()
     serializer_class = AlerteSerializer
+
+    def get_queryset(self):
+        qs = Alerte.objects.select_related('localisation').all().order_by('-date_alerte')
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(
+                Q(message__icontains=search)
+                | Q(niveau__icontains=search)
+                | Q(localisation__nom__icontains=search)
+            )
+        level = (self.request.query_params.get('level') or '').lower().strip()
+        if level:
+            # Map niveaux UI -> niveaux backend
+            level_map = {
+                'critical': 'fort',
+                'high': 'fort',
+                'medium': 'moyen',
+                'info': 'faible',
+                'low': 'faible',
+            }
+            mapped = level_map.get(level, level)
+            qs = qs.filter(niveau__icontains=mapped)
+        return qs
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = User.objects.all().order_by('id')
+    serializer_class = UserSerializer
+
+
+class CurrentUserView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(UserSerializer(request.user).data)
 
 
 
@@ -120,6 +158,18 @@ class PasswordResetConfirmView(APIView):
 class SignalementCreateView(APIView):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    def get_permissions(self):
+        # GET:
+        #  - Public si filtré par alerte_id (pour afficher les photos liées à une alerte)
+        #  - Réservé aux autorités sinon
+        # POST: ouvert à tous pour déclarer un signalement.
+        if getattr(self.request, 'method', '').upper() == 'GET':
+            alerte_id = self.request.query_params.get('alerte_id')
+            if alerte_id:
+                return [permissions.AllowAny()]
+            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
+
     def get(self, request):
         # Liste des signalements; supporte le filtre alerte_id pour joindre aux alertes
         alerte_id = request.query_params.get('alerte_id')
@@ -178,8 +228,27 @@ class SignalementCreateView(APIView):
             if lat is not None and lng is not None:
                 loc_obj = Localisation.objects.create(nom=f"Point ({lat:.4f},{lng:.4f})", latitude=lat, longitude=lng)
             else:
-                # Si pas de coordonnées, on crée une localisation avec nom + coordonnées neutres
-                loc_obj = Localisation.objects.create(nom=location_str or 'Lieu non précisé', latitude=0.0, longitude=0.0)
+                # Essayer de géocoder le texte (quartier) via Nominatim (OpenStreetMap), gratuit
+                geo_lat, geo_lng = None, None
+                try:
+                    q = location_str or ''
+                    if q:
+                        query = urlencode({ 'q': f"{q}, Dakar, Senegal", 'format': 'json', 'limit': 1 })
+                        req = Request(f"https://nominatim.openstreetmap.org/search?{query}", headers={ 'User-Agent': 'sentinel-dakar/1.0' })
+                        with urlopen(req, timeout=5) as resp:
+                            data = pyjson.loads(resp.read().decode('utf-8'))
+                            if isinstance(data, list) and data:
+                                first = data[0]
+                                geo_lat = float(first.get('lat'))
+                                geo_lng = float(first.get('lon'))
+                except Exception:
+                    geo_lat, geo_lng = None, None
+
+                if geo_lat is not None and geo_lng is not None:
+                    loc_obj = Localisation.objects.create(nom=location_str or 'Lieu', latitude=geo_lat, longitude=geo_lng)
+                else:
+                    # Si géocodage impossible, coordonnées neutres
+                    loc_obj = Localisation.objects.create(nom=location_str or 'Lieu non précisé', latitude=0.0, longitude=0.0)
 
             # 2) Mapper la gravité
             niveau_map = {
@@ -206,9 +275,12 @@ class SignalementCreateView(APIView):
 
             # 4) Créer l'alerte et le signalement
             alerte = Alerte.objects.create(localisation=loc_obj, niveau=niveau, message=message)
+            # Associer l'utilisateur si authentifié
+            created_by = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
             signalement = Signalement.objects.create(
                 localisation=loc_obj,
                 alerte=alerte,
+                created_by=created_by,
                 type_incident=incident_type,
                 location_text=location_str,
                 severity=severity,
@@ -223,6 +295,196 @@ class SignalementCreateView(APIView):
             for f in files:
                 SignalementPhoto.objects.create(signalement=signalement, file=f)
 
-            return Response({"success": True, "alerte_id": alerte.id, "signalement_id": signalement.id})
+            # Construire URLs photos (après upload)
+            def photo_url(p):
+                try:
+                    return request.build_absolute_uri(p.file.url)
+                except Exception:
+                    return None
+            photos_urls = [u for u in [photo_url(p) for p in signalement.photos.all()] if u]
+
+            return Response({
+                "success": True,
+                "alerte_id": alerte.id,
+                "signalement_id": signalement.id,
+                "photos": photos_urls,
+            })
         except Exception as exc:
             return Response({"error": f"Erreur serveur: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MySignalementsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        qs = Signalement.objects.filter(created_by=request.user).order_by('-created_at')[:100]
+
+        def photo_url(p):
+            try:
+                return request.build_absolute_uri(p.file.url)
+            except Exception:
+                return None
+
+        data = []
+        for s in qs:
+            data.append({
+                'id': s.id,
+                'description': s.description,
+                'severity': s.severity,
+                'location_text': s.location_text,
+                'created_at': s.created_at,
+                'alerte_id': s.alerte_id,
+                'photos': [u for u in [photo_url(p) for p in s.photos.all()] if u],
+            })
+        return Response(data)
+
+
+class DegatCreateView(APIView):
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_permissions(self):
+        # GET réservé aux autorités (staff). POST ouvert à tous pour déclarer un dégât.
+        if getattr(self.request, 'method', '').upper() == 'GET':
+            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
+
+    def get(self, request):
+        qs = Degat.objects.all().order_by('-created_at')[:100]
+        def piece_url(p):
+            try:
+                return request.build_absolute_uri(p.file.url)
+            except Exception:
+                return None
+        data = []
+        for d in qs:
+            data.append({
+                'id': d.id,
+                'property_type': d.property_type,
+                'loss_amount_text': d.loss_amount_text,
+                'loss_description': d.loss_description,
+                'people_affected': d.people_affected,
+                'remarks': d.remarks,
+                'created_at': d.created_at,
+                'pieces': [u for u in [piece_url(p) for p in d.pieces.all()] if u],
+            })
+        return Response(data)
+
+    def post(self, request):
+        try:
+            data = request.data
+            created_by = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
+            d = Degat.objects.create(
+                created_by=created_by,
+                property_type=data.get('property_type') or '',
+                loss_amount_text=data.get('loss_amount_text') or '',
+                loss_description=data.get('loss_description') or '',
+                people_affected=int(data.get('people_affected') or 0),
+                remarks=data.get('remarks') or '',
+            )
+            files = request.FILES.getlist('pieces')
+            for f in files:
+                DegatPiece.objects.create(degat=d, file=f)
+
+            def piece_url(p):
+                try:
+                    return request.build_absolute_uri(p.file.url)
+                except Exception:
+                    return None
+            pieces_urls = [u for u in [piece_url(p) for p in d.pieces.all()] if u]
+            return Response({
+                'success': True,
+                'degat_id': d.id,
+                'pieces': pieces_urls,
+            }, status=201)
+        except Exception as exc:
+            return Response({'error': f'Erreur serveur: {exc}'}, status=500)
+
+
+class MyDegatsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        qs = Degat.objects.filter(created_by=request.user).order_by('-created_at')[:100]
+        def piece_url(p):
+            try:
+                return request.build_absolute_uri(p.file.url)
+            except Exception:
+                return None
+        data = []
+        for d in qs:
+            data.append({
+                'id': d.id,
+                'property_type': d.property_type,
+                'loss_amount_text': d.loss_amount_text,
+                'loss_description': d.loss_description,
+                'people_affected': d.people_affected,
+                'remarks': d.remarks,
+                'created_at': d.created_at,
+                'pieces': [u for u in [piece_url(p) for p in d.pieces.all()] if u],
+            })
+        return Response(data)
+
+
+class AssistanceCreateView(APIView):
+    parser_classes = [JSONParser, FormParser]
+
+    def get_permissions(self):
+        # GET réservé aux autorités (staff). POST ouvert à tous.
+        if getattr(self.request, 'method', '').upper() == 'GET':
+            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
+
+    def get(self, request):
+        qs = AssistanceRequest.objects.all().order_by('-created_at')[:100]
+        data = [
+            {
+                'id': a.id,
+                'location_text': a.location_text,
+                'help_type': a.help_type,
+                'people_count': a.people_count,
+                'phone': a.phone,
+                'availability': a.availability,
+                'urgency_note': a.urgency_note,
+                'created_at': a.created_at,
+            }
+            for a in qs
+        ]
+        return Response(data)
+
+    def post(self, request):
+        try:
+            data = request.data
+            created_by = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
+            a = AssistanceRequest.objects.create(
+                created_by=created_by,
+                location_text=data.get('location_text') or '',
+                help_type=data.get('help_type') or '',
+                people_count=int(data.get('people_count') or 0),
+                phone=data.get('phone') or '',
+                availability=data.get('availability') or '',
+                urgency_note=data.get('urgency_note') or '',
+            )
+            return Response({'success': True, 'assistance_id': a.id}, status=201)
+        except Exception as exc:
+            return Response({'error': f'Erreur serveur: {exc}'}, status=500)
+
+
+class MyAssistanceView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        qs = AssistanceRequest.objects.filter(created_by=request.user).order_by('-created_at')[:100]
+        data = [
+            {
+                'id': a.id,
+                'location_text': a.location_text,
+                'help_type': a.help_type,
+                'people_count': a.people_count,
+                'phone': a.phone,
+                'availability': a.availability,
+                'urgency_note': a.urgency_note,
+                'created_at': a.created_at,
+            }
+            for a in qs
+        ]
+        return Response(data)
