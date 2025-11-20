@@ -172,10 +172,14 @@ class SignalementCreateView(APIView):
 
     def get(self, request):
         # Liste des signalements; supporte le filtre alerte_id pour joindre aux alertes
+        # et 'status' pour la vue de validation (pending|verified|resolved)
         alerte_id = request.query_params.get('alerte_id')
+        status_param = (request.query_params.get('status') or '').lower().strip()
         qs = Signalement.objects.all()
         if alerte_id:
             qs = qs.filter(alerte_id=alerte_id)
+        if status_param in ('pending', 'verified', 'resolved'):
+            qs = qs.filter(status=status_param)
         qs = qs.order_by('-created_at')[:50]
         def photo_url(p):
             try:
@@ -191,6 +195,7 @@ class SignalementCreateView(APIView):
                 'location_text': s.location_text,
                 'created_at': s.created_at,
                 'alerte_id': s.alerte_id,
+                'status': s.status,
                 'photos': [u for u in [photo_url(p) for p in s.photos.all()] if u],
             })
         return Response(data)
@@ -281,6 +286,7 @@ class SignalementCreateView(APIView):
                 localisation=loc_obj,
                 alerte=alerte,
                 created_by=created_by,
+                status='pending',
                 type_incident=incident_type,
                 location_text=location_str,
                 severity=severity,
@@ -311,6 +317,31 @@ class SignalementCreateView(APIView):
             })
         except Exception as exc:
             return Response({"error": f"Erreur serveur: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class SignalementValidateView(APIView):
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, pk: int):
+        try:
+            s = Signalement.objects.get(pk=pk)
+            s.status = 'verified'
+            s.save(update_fields=['status'])
+            return Response({'success': True, 'id': s.id, 'status': s.status})
+        except Signalement.DoesNotExist:
+            return Response({'error': 'Introuvable'}, status=404)
+
+
+class SignalementResolveView(APIView):
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, pk: int):
+        try:
+            s = Signalement.objects.get(pk=pk)
+            s.status = 'resolved'
+            s.save(update_fields=['status'])
+            return Response({'success': True, 'id': s.id, 'status': s.status})
+        except Signalement.DoesNotExist:
+            return Response({'error': 'Introuvable'}, status=404)
 
 
 class MySignalementsView(APIView):

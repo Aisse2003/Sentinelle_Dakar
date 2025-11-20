@@ -21,6 +21,8 @@ import RequireAuth from "./components/auth/RequireAuth";
 import RequireAuthority from "./components/auth/RequireAuthority";
 import Autorites from "./pages/Autorites";
 import { GeolocationProvider } from "./hooks/useGeolocation.tsx";
+import IndexRedirectGuard from "./components/auth/IndexRedirectGuard";
+import Validation from "./pages/Validation";
 
 const queryClient = new QueryClient();
 
@@ -42,7 +44,7 @@ const App = () => (
 
           {/* Routes protégées */}
           <Route element={<RequireAuth />}> 
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<IndexRedirectGuard><Index /></IndexRedirectGuard>} />
             <Route path="/carte" element={<Carte />} />
             <Route path="/compte" element={<Compte />} />
             <Route path="/alertes" element={<Alertes />} />
@@ -54,6 +56,7 @@ const App = () => (
             <Route path="/admin" element={<Admin />} />
             <Route element={<RequireAuthority />}>
             <Route path="/stats" element={<Stats />} />
+              <Route path="/validation" element={<Validation />} />
               <Route path="/autorites" element={<Autorites />} />
             </Route>
           </Route>

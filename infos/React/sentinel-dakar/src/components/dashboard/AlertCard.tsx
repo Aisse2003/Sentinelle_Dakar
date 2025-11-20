@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Clock, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 interface AlertCardProps {
   level: "low" | "medium" | "high" | "critical" | "info";
@@ -56,8 +57,8 @@ export function AlertCard({ level, title, message, location, time, isActive }: A
       config.bgColor,
       config.borderColor
     )}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between mb-2">
           <div className="flex items-center space-x-2">
             <AlertTriangle className={cn("h-5 w-5", config.textColor)} />
             <Badge className={cn(config.color, config.textColor)}>
@@ -69,8 +70,8 @@ export function AlertCard({ level, title, message, location, time, isActive }: A
           )}
         </div>
 
-        <h3 className="font-semibold text-foreground mb-2">{title}</h3>
-        <p className="text-sm text-muted-foreground mb-3">{message}</p>
+        <h3 className="font-semibold text-foreground mb-1">{title}</h3>
+        <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{message}</p>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
           <div className="flex items-center space-x-1">
@@ -84,11 +85,11 @@ export function AlertCard({ level, title, message, location, time, isActive }: A
         </div>
 
         <div className="flex space-x-2">
-          <Button size="sm" variant="outline" className="flex-1">
-            Détails
+          <Button size="sm" variant="outline" className="flex-1" asChild>
+            <Link to="/alertes">Détails</Link>
           </Button>
-          <Button size="sm" variant="default" className="flex-1">
-            Localiser
+          <Button size="sm" variant="default" className="flex-1" asChild>
+            <Link to="/carte">Localiser</Link>
           </Button>
         </div>
       </CardContent>

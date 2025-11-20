@@ -64,6 +64,7 @@ export function SideNav() {
         {(isAuthority
           ? [
               { name: "Autorités", href: "/autorites", icon: Users },
+              { name: "Validation", href: "/validation", icon: AlertTriangle },
               { name: "Statistiques", href: "/stats", icon: BarChart3 },
             ]
           : baseNavigation
@@ -91,7 +92,8 @@ export function SideNav() {
                 '/historique': 'nav.history',
                 '/stats': 'nav.stats',
                 '/compte': 'nav.account',
-                '/autorites': 'nav.authorities'
+                '/autorites': 'nav.authorities',
+                '/validation': 'nav.validation'
               } as any)[item.href] || item.name)}
             </Link>
           );

@@ -6,8 +6,9 @@ import { AlertCard } from "@/components/dashboard/AlertCard";
 import { MapPreview } from "@/components/dashboard/MapPreview";
 import { WeatherCard } from "@/components/dashboard/WeatherCard";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RecentActivity, ActivityItem } from "@/components/dashboard/RecentActivity";
+// import { RecentActivity, ActivityItem } from "@/components/dashboard/RecentActivity";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { 
   Droplets, 
@@ -77,16 +78,7 @@ const Index = () => {
     }
   }, [lastEvent]);
 
-  // Activité: mapper alertes -> ActivityItem
-  const recentActivity: ActivityItem[] = Array.isArray(alertsData)
-    ? alertsData.slice(0, 6).map((a: any, idx: number) => ({
-        id: String(a.id ?? a.pk ?? idx),
-        type: String(a.level || a.niveau || "info").toLowerCase().includes("crit") ? "alert" : "info",
-        title: a.title || a.titre || a.name || "Alerte",
-        user: a.source || a.emetteur || "Système",
-        time: String(a.time || a.created_at || a.date || "").replace("T", " ").replace("Z", ""),
-      }))
-    : [];
+  // Activité récente retirée sur demande
 
   return (
     <Layout>
@@ -112,13 +104,17 @@ const Index = () => {
                 </button>
               ))}
             </div>
-            <Button variant="outline">
-              <Bell className="h-4 w-4 mr-2" />
-              Alertes
+            <Button variant="outline" asChild>
+              <Link to="/alertes">
+                <Bell className="h-4 w-4 mr-2" />
+                Alertes
+              </Link>
             </Button>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nouveau Signalement
+            <Button asChild>
+              <Link to="/signalement">
+                <Plus className="h-4 w-4 mr-2" />
+                Nouveau Signalement
+              </Link>
             </Button>
           </div>
         </div>
@@ -170,15 +166,7 @@ const Index = () => {
             trend="up"
             trendValue="+23%"
           />
-          <StatsCard
-            title="Prédiction IA"
-            value={`${predictionIa}%`}
-            description="Précision du modèle"
-            icon={TrendingUp}
-            variant="success"
-            trend="up"
-            trendValue="+5%"
-          />
+          {/* Carte Prédiction IA retirée sur demande */}
         </div>
 
         {/* Main Content Grid */}
@@ -203,23 +191,14 @@ const Index = () => {
             ))}
           </div>
 
-          {/* Center Column - Map + Sparkline */}
+          {/* Center Column - Map */}
           <div className="space-y-4">
             <MapPreview />
-            <Card>
-              <CardHeader className="flex items-center justify-between">
-                <CardTitle className="text-sm">{t('dashboard.trend30')}</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <Sparkline data={sparkData} height={90} />
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Right Column - Weather + Recent Activity */}
+          {/* Right Column - Weather */}
           <div className="space-y-4">
             <WeatherCard />
-            <RecentActivity items={recentActivity} />
           </div>
         </div>
       </div>

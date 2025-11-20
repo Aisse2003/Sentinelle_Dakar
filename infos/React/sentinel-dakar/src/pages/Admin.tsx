@@ -10,12 +10,15 @@ import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { useRealtime } from "@/hooks/useRealtime";
+import axios from "axios";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function Admin() {
   const { t } = useTranslation();
   const { data: alertes } = useApi("alertes");
   const { data: signalements } = useApi("signalements");
   const { data: infrastructures } = useApi("infrastructures");
+  const queryClient = useQueryClient();
 
   const totalAlertes = Array.isArray(alertes) ? alertes.length : 0;
   const totalSignalements = Array.isArray(signalements) ? signalements.length : 0;
@@ -240,6 +243,7 @@ export default function Admin() {
                     <TableHead>{t('common.alerts')}</TableHead>
                     <TableHead>{t('map.locate')}</TableHead>
                     <TableHead>{t('common.date')}</TableHead>
+                    <TableHead className="text-right">{t('common.actions', { defaultValue: 'Actions' })}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -249,6 +253,24 @@ export default function Admin() {
                       <TableCell>{s.alerte_id || s.alert_id || "-"}</TableCell>
                       <TableCell>{s.location || s.localisation || s.location_text || "-"}</TableCell>
                       <TableCell>{String(s.created_at || s.date || "").replace("T"," ").replace("Z", "")}</TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" onClick={async ()=> {
+                          try {
+                            const id = s.id || s.pk;
+                            if (!id) return;
+                            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+                            await axios.post(`http://127.0.0.1:8000/api/signalements/${id}/validate/`, {}, {
+                              headers: token ? { Authorization: `Bearer ${token}` } : undefined
+                            });
+                            try { await queryClient.invalidateQueries({ queryKey: ["alertes"], exact: false }); } catch {}
+                            alert(t('admin.alertCreated', { defaultValue: "Alerte créée et notifications déclenchées." }) as string);
+                          } catch (e) {
+                            alert(t('admin.actionFailed', { defaultValue: "Échec de la validation." }) as string);
+                          }
+                        }}>
+                          {t('admin.validate', { defaultValue: 'Valider' })}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

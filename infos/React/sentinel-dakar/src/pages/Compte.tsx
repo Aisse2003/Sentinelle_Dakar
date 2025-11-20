@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Navigate } from "react-router-dom";
 import { getUserProfile, logout } from "@/services/auth";
+import { loadPrefs, savePrefs, registerServiceWorker, subscribePush, saveSubscription, sendTestNotification, type NotificationPrefs } from "@/services/notifications";
 
 export default function Compte() {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -11,6 +12,9 @@ export default function Compte() {
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [prefs, setPrefs] = useState<NotificationPrefs>(loadPrefs());
+  const [pushReady, setPushReady] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,6 +28,38 @@ export default function Compte() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const onTogglePref = (key: keyof NotificationPrefs) => {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    savePrefs(next);
+  };
+
+  const onEnablePush = async () => {
+    setPushError(null);
+    try {
+      const reg = await registerServiceWorker();
+      if (!reg) { setPushError("Service worker non supporté"); return; }
+      const vapid = (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY;
+      const sub = await subscribePush(reg, vapid);
+      await saveSubscription(sub);
+      const next = { ...prefs, webPush: true };
+      setPrefs(next);
+      savePrefs(next);
+      setPushReady(true);
+    } catch (e: any) {
+      setPushError(e?.message || "Activation des push impossible");
+    }
+  };
+
+  const onTestAlert = async () => {
+    try {
+      await sendTestNotification(prefs);
+      alert("Notification de test envoyée (si possible).");
+    } catch {
+      alert("Échec de l’envoi de la notification de test.");
+    }
+  };
 
   return (
     <Layout>
@@ -89,6 +125,37 @@ export default function Compte() {
             ) : (
               <p className="text-sm text-destructive">Impossible de charger votre profil.</p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Préférences de notification</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={prefs.inApp} onChange={() => onTogglePref("inApp")} />
+                Notifications in‑app
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={prefs.webPush} onChange={() => onTogglePref("webPush")} />
+                Push navigateur
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={prefs.sms} onChange={() => onTogglePref("sms")} />
+                SMS (alertes critiques)
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={onEnablePush}>Activer les push</Button>
+              <Button size="sm" onClick={onTestAlert}>Tester une alerte</Button>
+              {pushReady && <span className="text-xs text-success">Push activé</span>}
+              {pushError && <span className="text-xs text-destructive">{pushError}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Note: les push nécessitent une clé VAPID publique côté front (VITE_VAPID_PUBLIC_KEY) et un endpoint backend pour enregistrer l’abonnement.
+            </p>
           </CardContent>
         </Card>
       </div>

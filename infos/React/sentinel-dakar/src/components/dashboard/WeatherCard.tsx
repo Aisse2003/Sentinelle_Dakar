@@ -32,7 +32,7 @@ export function WeatherCard() {
 
   return (
     <Card className="h-full">
-      <CardHeader>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="flex items-center justify-between">
           <span>Conditions Météo</span>
           <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
@@ -40,13 +40,13 @@ export function WeatherCard() {
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 p-4 pt-0">
         {/* Current weather */}
-        <div className="text-center p-4 rounded-lg gradient-ocean text-primary-foreground">
+        <div className="text-center p-3 rounded-lg gradient-ocean text-primary-foreground">
           <p className="text-sm opacity-90 mb-1">{hasApi ? data.locationLabel : weatherData.location}</p>
           <div className="flex items-center justify-center space-x-3 mb-2">
             <CurrentIcon className="h-8 w-8" />
-            <span className="text-3xl font-bold">{hasApi ? data.temperatureC : weatherData.current.temperature}°C</span>
+            <span className="text-2xl font-bold">{hasApi ? data.temperatureC : weatherData.current.temperature}°C</span>
           </div>
           <p className="text-sm opacity-90">{hasApi ? data.condition : weatherData.current.condition}</p>
         </div>

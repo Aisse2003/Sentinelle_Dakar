@@ -1,4 +1,5 @@
 import React from "react";
+import { registerServiceWorker, subscribePush, saveSubscription, updatePresence } from "@/services/notifications";
 
 type GeoPosition = { latitude: number; longitude: number; accuracy?: number } | null;
 
@@ -52,6 +53,27 @@ export function GeolocationProvider({ children }: { children: React.ReactNode })
       try { if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current); } catch {}
     };
   }, [startWatch]);
+
+  // Enregistrer la présence (push + géoloc) pour ciblage de zone
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        if (!token) return;
+        const reg = await registerServiceWorker();
+        if (!reg) return;
+        const sub = await subscribePush(reg).catch(() => null);
+        if (!sub) return;
+        try { await saveSubscription(sub); } catch {}
+        if (!position) return;
+        const endpoint = (sub as any)?.endpoint as string;
+        if (!endpoint) return;
+        await updatePresence({ endpoint, lat: position.latitude, lng: position.longitude });
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [position?.latitude, position?.longitude]);
 
   const refresh = React.useCallback(() => {
     startWatch();

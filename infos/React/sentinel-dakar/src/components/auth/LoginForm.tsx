@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { User, Lock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from "@tanstack/react-query";
+import { getUserProfile } from "@/services/auth";
 
 export default function LoginForm({ showHeader = true }: { showHeader?: boolean }) {
   const { login, error, loading } = useAuth();
@@ -13,13 +15,27 @@ export default function LoginForm({ showHeader = true }: { showHeader?: boolean 
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier || !password) return;
     await login(identifier, password);
     const token = localStorage.getItem("token");
-    if (token) navigate("/", { replace: true });
+    if (token) {
+      // Précharger silencieusement les données critiques sans bloquer la navigation
+      try { queryClient.prefetchQuery({ queryKey: ["alertes"], queryFn: async () => (await fetch("http://127.0.0.1:8000/api/alertes/")).json() }); } catch {}
+      try { queryClient.prefetchQuery({ queryKey: ["signalements"], queryFn: async () => (await fetch("http://127.0.0.1:8000/api/signalements/")).json() }); } catch {}
+      try { queryClient.prefetchQuery({ queryKey: ["degats/mes"], queryFn: async () => (await fetch("http://127.0.0.1:8000/api/degats/mes/")).json() }); } catch {}
+      try { queryClient.prefetchQuery({ queryKey: ["assistance/mes"], queryFn: async () => (await fetch("http://127.0.0.1:8000/api/assistance/mes/")).json() }); } catch {}
+      try {
+        const me = await getUserProfile();
+        const isAuthority = !!(me?.is_staff || me?.is_superuser);
+        navigate(isAuthority ? "/autorites" : "/", { replace: true });
+      } catch {
+        navigate("/", { replace: true });
+      }
+    }
   };
 
   // Connexion "sociale" DEV: tente register puis fallback login

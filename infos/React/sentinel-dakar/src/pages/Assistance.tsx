@@ -8,15 +8,15 @@ import { Label } from "@/components/ui/label";
 import { useCreateAssistance } from "../hooks/useApi";
 import { MapPin, Phone, LifeBuoy, Clock, AlertTriangle } from "lucide-react";
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useGeolocation } from "@/hooks/useGeolocation.tsx";
 
 export default function Assistance() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { position } = useGeolocation();
   const [location, setLocation] = useState("");
   const [helpType, setHelpType] = useState("rescue");
@@ -26,6 +26,7 @@ export default function Assistance() {
   const [urgency, setUrgency] = useState("");
   const { mutateAsync: createAssistance, status } = useCreateAssistance();
   const isSubmitting = status === 'pending';
+  const [submittedOk, setSubmittedOk] = useState(false);
 
   const useMyLocation = () => {
     if (!navigator.geolocation) return;
@@ -53,7 +54,16 @@ export default function Assistance() {
         urgency_note: urgency,
       });
       try { await queryClient.invalidateQueries({ queryKey: ["assistance/mes"], exact: false }); } catch {}
-      try { await axios.get('http://127.0.0.1:8000/api/assistance/mes/'); } catch {}
+      // Prefetch des données d'historique pour éviter l'écran blanc
+      try {
+        await queryClient.prefetchQuery({
+          queryKey: ["assistance/mes"],
+          queryFn: async () => {
+            const { data } = await axios.get('http://127.0.0.1:8000/api/assistance/mes/');
+            return data;
+          },
+        });
+      } catch {}
       navigate('/historique?tab=assistance', { replace: true });
       return;
     } catch {
@@ -78,6 +88,14 @@ export default function Assistance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {submittedOk && (
+              <div className="mb-4 p-3 rounded-lg bg-success/10 border border-success/20 text-sm">
+                {t('common.success', { defaultValue: 'Votre demande a été envoyée avec succès.' })}{" "}
+                <Link className="underline" to="/historique?tab=assistance">
+                  {t('nav.history', { defaultValue: 'Voir l’historique' })}
+                </Link>
+              </div>
+            )}
             <form onSubmit={onSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">

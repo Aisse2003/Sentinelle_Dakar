@@ -45,6 +45,7 @@ class Signalement(models.Model):
     localisation = models.ForeignKey(Localisation, on_delete=models.CASCADE)
     alerte = models.ForeignKey(Alerte, on_delete=models.SET_NULL, null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='signalements')
+    status = models.CharField(max_length=20, default="pending")  # pending | verified | resolved
     type_incident = models.CharField(max_length=100, blank=True, default="")
     location_text = models.CharField(max_length=255, blank=True, default="")
     severity = models.CharField(max_length=20, blank=True, default="")

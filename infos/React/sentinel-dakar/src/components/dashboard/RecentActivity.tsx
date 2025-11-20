@@ -28,12 +28,12 @@ export function RecentActivity({ items }: { items?: ActivityItem[] }) {
   const data = Array.isArray(items) && items.length > 0 ? items : mockActivities;
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="py-3 px-4">
         <CardTitle>Activité récente</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2 p-4 pt-2">
         {data.map((item) => (
-          <div key={item.id} className="flex items-start justify-between rounded-lg p-3 hover:bg-muted/50 transition-colors">
+          <div key={item.id} className="flex items-start justify-between rounded-lg p-2 hover:bg-muted/50 transition-colors">
             <div className="flex items-start space-x-3">
               <div className={`h-8 w-8 rounded-full flex items-center justify-center ${typeStyles[item.type]}`}>
                 {item.type === "alert" ? (

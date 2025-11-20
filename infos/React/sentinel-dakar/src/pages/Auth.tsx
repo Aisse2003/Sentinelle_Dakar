@@ -27,12 +27,12 @@ export default function Auth() {
         <div className="absolute inset-0 bg-primary/60" />
         <div className="relative min-h-screen flex items-center justify-center p-6">
           {/* Lien inscription en haut à droite */}
-              <button
-            className="absolute top-6 right-6 text-sm text-primary-foreground/90 hover:text-white"
+          <button
+            className="absolute top-6 right-6 px-4 py-2 rounded-full border border-white/70 bg-white/10 text-white/95 hover:bg-white/20 hover:text-white text-base md:text-lg font-semibold shadow"
             onClick={() => navigate('/auth?tab=register')}
-              >
+          >
             {t('auth.createNew')}
-              </button>
+          </button>
 
           <div className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg border border-border p-6 md:p-8">
             <div className="flex items-center justify-start mb-4">

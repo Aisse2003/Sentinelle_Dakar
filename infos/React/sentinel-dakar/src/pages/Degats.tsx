@@ -8,14 +8,14 @@ import { Label } from "@/components/ui/label";
 import { useCreateDegats } from "../hooks/useApi";
 import { Home, FileText, Users, Upload, Camera, X, CheckCircle, Clock } from "lucide-react";
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
 export default function Degats() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [propertyType, setPropertyType] = useState("");
   const [lossAmountText, setLossAmountText] = useState("");
   const [lossDescription, setLossDescription] = useState("");
@@ -27,6 +27,7 @@ export default function Degats() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { mutateAsync: createDegats, status } = useCreateDegats();
   const isSubmitting = status === "pending";
+  const [submittedOk, setSubmittedOk] = useState(false);
 
   const addFiles = (files: File[]) => {
     const imgs = files.filter(f => f.type.startsWith('image/'));
@@ -61,7 +62,16 @@ export default function Degats() {
     try {
       await createDegats(form);
       try { await queryClient.invalidateQueries({ queryKey: ["degats/mes"], exact: false }); } catch {}
-      try { await axios.get('http://127.0.0.1:8000/api/degats/mes/'); } catch {}
+      // Prefetch des données pour éviter l'écran blanc sur Historique
+      try {
+        await queryClient.prefetchQuery({
+          queryKey: ["degats/mes"],
+          queryFn: async () => {
+            const { data } = await axios.get('http://127.0.0.1:8000/api/degats/mes/');
+            return data;
+          },
+        });
+      } catch {}
       navigate('/historique?tab=degats', { replace: true });
       return;
     } catch {
@@ -85,6 +95,14 @@ export default function Degats() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {submittedOk && (
+              <div className="mb-4 p-3 rounded-lg bg-success/10 border border-success/20 text-sm">
+                {t('common.success', { defaultValue: 'Votre déclaration de dégâts a été envoyée.' })}{" "}
+                <Link className="underline" to="/historique?tab=degats">
+                  {t('nav.history', { defaultValue: 'Voir l’historique' })}
+                </Link>
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">

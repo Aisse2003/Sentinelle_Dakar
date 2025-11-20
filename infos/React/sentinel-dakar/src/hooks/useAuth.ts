@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+import { setAuthToken, getUserProfile } from "@/services/auth";
 
 const API_BASE = "http://127.0.0.1:8000/api/auth/";
 
@@ -19,9 +20,14 @@ export const useAuth = () => {
       const response = await axios.post(`${API_BASE}token/`, payload, { headers: { "Content-Type": "application/json" } });
       const access = (response.data as any)?.access;
       if (!access) throw new Error("Token manquant");
-      localStorage.setItem("token", access);
+      // Stocker et configurer l'en-tête global immédiatement
+      setAuthToken(access);
       setToken(access);
       setUser(null);
+      // Récupération du profil en arrière-plan (ne bloque pas la navigation)
+      (async () => {
+        try { const me = await getUserProfile(); setUser(me); } catch {}
+      })();
     } catch (e: any) {
       const apiMsg = e?.response?.data?.error || e?.response?.data?.detail || null;
       setError(apiMsg || "Échec de la connexion");
@@ -39,7 +45,7 @@ export const useAuth = () => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const { token, user } = response.data;
-      localStorage.setItem("token", token);
+      setAuthToken(token);
       setToken(token);
       setUser(user);
     } catch (e: any) {

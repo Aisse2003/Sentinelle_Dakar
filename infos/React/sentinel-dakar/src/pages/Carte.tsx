@@ -55,6 +55,7 @@ const Carte = () => {
   const [fullscreen, setFullscreen] = useState(false);
   const { t } = useTranslation();
   const { position } = useGeolocation();
+  const [searchText, setSearchText] = useState("");
 
   // Données réelles
   const { data: alertsData } = useApi("alertes");
@@ -78,6 +79,45 @@ const Carte = () => {
   const focusZone = (coords: [number, number] | number[]) => {
     if (map) {
       map.setView(coords as LatLngTuple, 14, { animate: true });
+    }
+  };
+
+  // Recherche: par nom de zone ou coordonnées "lat, lng"
+  const handleSearch = () => {
+    const q = (searchText || "").trim();
+    if (!q) return;
+    // Essayer de parser des coordonnées
+    const m = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (m) {
+      const lat = parseFloat(m[1]);
+      const lng = parseFloat(m[2]);
+      if (isFinite(lat) && isFinite(lng)) {
+        focusZone([lat, lng]);
+        return;
+      }
+    }
+    // Rechercher par nom de zone connu
+    const lower = q.toLowerCase();
+    const foundRisk = riskZones.find(z => z.name.toLowerCase().includes(lower));
+    if (foundRisk) {
+      focusZone(foundRisk.coords);
+      return;
+    }
+    // Chercher dans alertes / signalements (localisation.nom ou location_text)
+    const findLatLngByLabel = (arr: any[]) => {
+      for (const a of arr) {
+        const label = String(a?.localisation?.nom || a?.location_text || a?.location || "").toLowerCase();
+        if (label && label.includes(lower)) {
+          const p = getLatLng(a);
+          if (p) return p;
+        }
+      }
+      return null;
+    };
+    const p1 = Array.isArray(alertsData) ? findLatLngByLabel(alertsData as any[]) : null;
+    const p2 = p1 || (Array.isArray(reportsData) ? findLatLngByLabel(reportsData as any[]) : null);
+    if (p2) {
+      focusZone(p2 as any);
     }
   };
 
@@ -137,7 +177,7 @@ const Carte = () => {
           </div>
         </div>
 
-        <div className={`grid grid-cols-1 lg:grid-cols-4 gap-6 ${fullscreen ? 'fixed inset-0 z-50 bg-white p-4' : ''}`}>
+        <div className={`grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 ${fullscreen ? 'fixed inset-0 z-50 bg-white p-4' : ''}`}>
           {/* Sidebar */}
           <div className="space-y-4">
             {/* Search */}
@@ -147,8 +187,14 @@ const Carte = () => {
               </CardHeader>
               <CardContent>
                 <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder={t('common.search')+"..."} className="pl-10" />
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder={t('common.search')+"..."}
+                    className="pl-10"
+                    value={searchText}
+                    onChange={(e)=>setSearchText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSearch(); } }}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -184,7 +230,7 @@ const Carte = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {riskZones.map(zone => {
+                {(searchText ? riskZones.filter(z => z.name.toLowerCase().includes(searchText.toLowerCase())) : riskZones).map(zone => {
                   const config = levelConfig[zone.level];
                   return (
                     <div key={zone.id} className="p-3 rounded-lg border hover:bg-accent/50 cursor-pointer transition-colors">
@@ -214,8 +260,8 @@ const Carte = () => {
           </div>
 
           {/* Main Map */}
-          <div className="lg:col-span-3">
-            <Card className="h-[700px]">
+          <div className="md:col-span-2 lg:col-span-3">
+            <Card className="h-[80vh]">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center">
@@ -230,7 +276,7 @@ const Carte = () => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-0 h-[650px]">
+              <CardContent className="p-0 h-[72vh]">
                 <AnyMapContainer
                   center={initialCenter as any}
                   zoom={12}

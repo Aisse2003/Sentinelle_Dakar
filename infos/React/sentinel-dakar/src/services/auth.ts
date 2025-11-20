@@ -16,7 +16,9 @@ export async function register(payload: RegisterPayload) {
 }
 
 export async function getUserProfile() {
-  const { data } = await axios.get(`${API_BASE_URL}/auth/user/`);
+  const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+  const { data } = await axios.get(`${API_BASE_URL}/auth/user/`, { headers });
   return data;
 }
 

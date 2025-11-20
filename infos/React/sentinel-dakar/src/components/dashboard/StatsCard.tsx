@@ -32,10 +32,10 @@ export function StatsCard({
 
   return (
     <Card className={cn(
-      "transition-all duration-300 hover:scale-105 animate-float",
+      "transition-all duration-300 hover:scale-105",
       variantStyles[variant]
     )}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 py-2 px-4">
         <CardTitle className={cn(
           "text-sm font-medium",
           isGradient ? "text-current" : "text-muted-foreground"
@@ -47,9 +47,9 @@ export function StatsCard({
           isGradient ? "text-current opacity-80" : "text-muted-foreground"
         )} />
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0 px-4 pb-3">
         <div className={cn(
-          "text-2xl font-bold",
+          "text-xl font-bold",
           isGradient ? "text-current" : "text-foreground"
         )}>
           {value}

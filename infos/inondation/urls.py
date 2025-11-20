@@ -8,7 +8,7 @@ from .views import LocalisationViewSet, CapteurViewSet, MesureViewSet, AlerteVie
 from .views import RegisterView, LoginView
 from .views import CurrentUserView
 from .views_sse import sse_stream
-from .views import PasswordResetRequestView, PasswordResetConfirmView, SignalementCreateView, MySignalementsView, DegatCreateView, MyDegatsView, AssistanceCreateView, MyAssistanceView
+from .views import PasswordResetRequestView, PasswordResetConfirmView, SignalementCreateView, MySignalementsView, DegatCreateView, MyDegatsView, AssistanceCreateView, MyAssistanceView, SignalementValidateView, SignalementResolveView
 
 router = DefaultRouter()
 router.register(r'localisations', LocalisationViewSet)
@@ -31,6 +31,8 @@ urlpatterns = [
     # Signalement citoyen
     path('signalements/', SignalementCreateView.as_view(), name='signalement_create'),
     path('signalements/mes/', MySignalementsView.as_view(), name='my_signalements'),
+    path('signalements/<int:pk>/validate/', SignalementValidateView.as_view(), name='signalement_validate'),
+    path('signalements/<int:pk>/resolve/', SignalementResolveView.as_view(), name='signalement_resolve'),
 
     # Déclaration de dégâts
     path('degats/', DegatCreateView.as_view(), name='degats_create'),

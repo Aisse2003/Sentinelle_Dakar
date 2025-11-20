@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from 'react-i18next';
 import { getUserProfile } from "@/services/auth";
+import { sendTestNotification, loadPrefs } from "@/services/notifications";
 
 // Données dynamiques via API
 type Alerte = { id: number; title?: string; message?: string; level?: keyof typeof levelConfig; location?: string; time?: string; affected?: number; status?: string };
@@ -188,7 +189,15 @@ const Alertes = () => {
               <Settings className="h-4 w-4 mr-2" />
               {t('common.preferences', { defaultValue: 'Préférences' })}
             </Button>
-            <Button>
+            <Button onClick={async () => {
+              try {
+                const prefs = loadPrefs();
+                await sendTestNotification(prefs);
+                window.alert(t('common.testAlert', { defaultValue: 'Test Alerte envoyée' }) as string);
+              } catch {
+                window.alert(t('alerts.detailsError', { defaultValue: 'Impossible de charger les détails.' }) as string);
+              }
+            }}>
               <Volume2 className="h-4 w-4 mr-2" />
               {t('common.testAlert', { defaultValue: 'Test Alerte' })}
             </Button>

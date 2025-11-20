@@ -22,6 +22,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('inondation.urls')),  # redirige /api/ vers ton app "inondation"
+    path('', include('notifications.urls')),
 ]
 
 if settings.DEBUG:
